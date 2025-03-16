@@ -1,0 +1,10 @@
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--btcpay-space-s);
+}
+
+.theme-switch .btn-icon {
+  --icon-size: 1.75rem;
+  padding: 0;
+}

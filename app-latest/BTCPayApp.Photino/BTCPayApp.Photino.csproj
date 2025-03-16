@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <OutputType>WinExe</OutputType>
+        <SelfContained>true</SelfContained>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Version>1.0.0</Version>
+        <DebugType>embedded</DebugType>
+        <PublishSingleFile>true</PublishSingleFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Photino.Blazor" Version="3.2.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Update="wwwroot\**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\BTCPayApp.Core\BTCPayApp.Core.csproj"/>
+        <ProjectReference Include="..\BTCPayApp.Desktop\BTCPayApp.Desktop.csproj"/>
+        <ProjectReference Include="..\BTCPayApp.UI\BTCPayApp.UI.csproj"/>
+    </ItemGroup>
+
+
+</Project>

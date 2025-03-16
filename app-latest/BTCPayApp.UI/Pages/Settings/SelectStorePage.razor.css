@@ -1,0 +1,4 @@
+.container {
+  max-width: 380px;
+  margin-top: var(--btcpay-space-l);
+}

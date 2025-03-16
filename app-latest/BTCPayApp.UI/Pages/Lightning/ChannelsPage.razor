@@ -1,0 +1,531 @@
+﻿@attribute [Route(Routes.ChannelsPeers)]
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.Core.Data
+@using BTCPayApp.UI.Components.Layout
+@using BTCPayApp.Core.Helpers
+@using BTCPayApp.Core.LDK
+@using BTCPayApp.Core.Wallet
+@using BTCPayApp.UI.Features
+@using BTCPayApp.UI.Models
+@using BTCPayApp.UI.Util
+@using LNURL
+@using NBitcoin
+@using org.ldk.enums
+@using org.ldk.structs
+@using NodeInfo = BTCPayServer.Lightning.NodeInfo
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject NavigationManager NavigationManager
+@inject LightningNodeManager LightningNodeManager
+@inject IState<RootState> State
+@inject IState<StoreState> StoreState
+@inject IState<UIState> UIState
+@inject IDispatcher Dispatcher
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Peers and Channels</PageTitle>
+
+<SectionContent SectionId="_Layout.Top">
+    <Titlebar Back>
+        <h1>Peers and Channels</h1>
+    </Titlebar>
+</SectionContent>
+<section class="container">
+    <AuthorizeView Policy="@AppPolicies.CanModifySettings">
+        <Authorized>
+            @if (LightningNodeManager.IsActive)
+            {
+                <h2>Peers</h2>
+                <PeersList Peers="_peers" OnConnectPeer="ConnectPeer" OnDisconnectPeer="DisconnectPeer" OnUpdatePeer="UpdatePeer" class="mb-4"/>
+
+                @if (PeerModel != null)
+                {
+                    <h2>Connect Peer</h2>
+                    <ValidationEditContext @ref="_connectEditContext" Model="PeerModel" OnValidSubmit="ConnectToNewPeer" SuccessMessage="@ConnectSuccessMessage" ErrorMessage="@ConnectErrorMessage">
+                        <DataAnnotationsValidator/>
+                        <fieldset class="box">
+                            <div class="form-group">
+                                <label for="PeerUrl" class="form-label" data-required>Peer URL</label>
+                                <InputText @bind-Value="PeerModel.PeerUrl" id="PeerUrl" class="form-control"/>
+                                <ValidationMessage For="@(() => PeerModel.PeerUrl)"/>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" disabled="@(_connectEditContext!.Invalid || PeerConnecting)">
+                                @if (PeerConnecting)
+                                {
+                                    <LoadingIndicator/>
+                                }
+                                else
+                                {
+                                    <span>Connect Peer</span>
+                                }
+                            </button>
+                        </fieldset>
+                    </ValidationEditContext>
+                }
+
+                <h2>Channels</h2>
+                @if (Node != null && _config != null && _channels?.Any() is true)
+                {
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Channel ID</th>
+                                <th>Alternate IDs</th>
+                                <th>Counterparty</th>
+                                <th>Confirmations</th>
+                                <th>Confirmations Required</th>
+                                <th>Funding Transaction Hash</th>
+                                <th>Usable</th>
+                                <th>Ready</th>
+                                <th>Balance</th>
+                                <th>Inbound</th>
+                                <th>Outbound</th>
+                                <th>State</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var channel in _channels)
+                            {
+                                var connected = _peers?.Any(p => string.Equals(p.NodeId, channel.Value.channelDetails?.get_counterparty().get_node_id().ToString(), StringComparison.InvariantCultureIgnoreCase)) is true;
+                                var active = false;
+                                var alternates = channel.Value.channel.Aliases.Select(alias => alias.Id).ToHashSet();
+                                if (channel.Value.channelDetails is not null)
+                                {
+                                    if(channel.Value.channelDetails.get_short_channel_id() is Option_u64Z.Option_u64Z_Some some)
+                                    {
+                                        alternates.Add(some.some.ToString());
+                                    }
+                                    alternates.Add(Convert.ToHexString(channel.Value.channelDetails.get_channel_id().get_a()).ToLowerInvariant());
+                                }
+                                alternates.Remove(channel.Key);
+                                <tr>
+                                <td>@channel.Key</td>
+                                <td>
+                                    @foreach (var alternateId in alternates)
+                                    {
+                                        <span>@alternateId</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (channel.Value.channelDetails is not null && channel.Value.channelDetails.get_counterparty() is ChannelCounterparty counterparty)
+                                    {
+                                        var counterpartyNodeId = Convert.ToHexString(counterparty.get_node_id()).ToLowerInvariant();
+                                        if (_config.Peers.TryGetValue(counterpartyNodeId, out var peerConfig) && !string.IsNullOrEmpty(peerConfig.Label))
+                                        {
+                                            <span>@peerConfig.Label</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@counterpartyNodeId</span>
+                                        }
+                                    }
+                                </td>
+                                <td>@(channel.Value.channelDetails?.get_confirmations() is Option_u32Z.Option_u32Z_Some x1? x1.some: "")   </td>
+                                <td>@(channel.Value.channelDetails?.get_confirmations_required()is Option_u32Z.Option_u32Z_Some x2? x2.some: "") </td>
+                                <td>@(channel.Value.channelDetails is null? "": Convert.ToHexString(channel.Value.channelDetails?.get_funding_txo().get_txid()).ToLowerInvariant())</td>
+                                <td>@channel.Value.channelDetails?.get_is_usable()</td>
+                                <td>@channel.Value.channelDetails?.get_is_channel_ready()</td>
+                                <td>@channel.Value.channelDetails?.get_balance_msat()</td>
+                                <td>@channel.Value.channelDetails?.get_inbound_capacity_msat()</td>
+                                <td>@channel.Value.channelDetails?.get_outbound_capacity_msat()</td>
+                                <td>
+                                    @if (channel.Value.channel.Archived)
+                                    {
+                                        <span>Archived</span>
+                                    }else if (channel.Value.channelDetails is null)
+                                    {
+                                        @if (channel.Value.channel.AdditionalData.TryGetValue("CloseReasonHuman", out var reasonHuman))
+                                        {
+                                            <span>@reasonHuman.GetString()</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Unknown but probably closed</span>
+                                        }
+                                    }
+                                    else if(channel.Value.channelDetails.get_channel_shutdown_state() is Option_ChannelShutdownStateZ.Option_ChannelShutdownStateZ_Some some && some.some != ChannelShutdownState.LDKChannelShutdownState_NotShuttingDown  )
+                                    {
+                                        <span>@some.some.ToString()</span>
+                                    }
+                                    else
+                                    {
+                                        active = true;
+                                        <span>Active</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (active && channel.Value.channelDetails != null)
+                                    {
+                                        <button type="button" class="btn btn-primary btn-sm" @onclick="() => Node.CloseChannel(channel.Value.channelDetails.get_channel_id(), new PubKey(channel.Value.channelDetails.get_counterparty().get_node_id()), !connected) ">Close</button>
+                                    }
+                                </td>
+                                </tr>
+
+                            }
+
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="box">
+                        <p class="text-muted text-center py-4">There are no channels, yet.</p>
+                    </div>
+                }
+
+                @if (_peers?.Any() is true && ChannelModel != null)
+                {
+                    <h2>Open Channel</h2>
+                    <ValidationEditContext @ref="_openChannelEditContext" Model="ChannelModel" OnValidSubmit="() => OpenChannel()" SuccessMessage="@ChannelSuccessMessage" ErrorMessage="@ChannelErrorMessage">
+                        <DataAnnotationsValidator/>
+                        <fieldset class="box">
+                            <div class="form-group">
+                                <label for="PeerId" class="form-label" data-required>Peer</label>
+                                <InputSelect @bind-Value="ChannelModel.PeerId" id="PeerId" class="form-select">
+                                    <option>Select peer</option>
+                                    @foreach (var peer in _peers)
+                                    {
+                                        <option value="@peer.NodeId">
+                                            @peer.NodeId
+                                            @if (!string.IsNullOrEmpty(peer.Info?.Label))
+                                            {
+                                                @($" - {peer.Info.Label}")
+                                            }
+                                        </option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => ChannelModel.PeerId)"/>
+                            </div>
+                            <div class="form-group">
+                                <label for="Amount" class="form-label" data-required>Amount</label>
+                                <InputAmount Id="Amount" @bind-Value="ChannelModel.Amount" Unit="@UnitMoney" Rate="@Rate" Currency="@Currency" OnToggleDisplayCurrency="ToggleDisplayCurrency" />
+                                <ValidationMessage For="@(() => ChannelModel.Amount)"/>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" disabled="@(_openChannelEditContext!.Invalid || ChannelOpening)">
+                                @if (ChannelOpening)
+                                {
+                                    <LoadingIndicator/>
+                                }
+                                else
+                                {
+                                    <span>Open Channel</span>
+                                }
+                            </button>
+                        </fieldset>
+                    </ValidationEditContext>
+                }
+            }
+            else
+            {
+                <LightningNodeStateAlert State="State.Value.LightningNodeState"/>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <Alert Type="danger">Unauthorized.</Alert>
+        </NotAuthorized>
+    </AuthorizeView>
+</section>
+
+@code {
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private LightningConfig? _config;
+    private Dictionary<string, (Channel channel, ChannelDetails? channelDetails)>? _channels;
+    private IEnumerable<LightningPeerModel>? _peers;
+    private LDKNode? Node => LightningNodeManager.Node;
+    private string? Currency => StoreState.Value.StoreInfo?.DefaultCurrency;
+    private decimal? Rate => StoreState.Value.Rates?.Data?.FirstOrDefault()?.Rate;
+    private string DisplayCurrency => UIState.Value.DisplayCurrency;
+    private MoneyUnit UnitMoney => DisplayCurrency == CurrencyDisplay.BTC ? MoneyUnit.BTC : MoneyUnit.Satoshi;
+    private bool Loading { get; set; }
+
+    private bool ChannelOpening { get; set; }
+    private string? ChannelSuccessMessage { get; set; }
+    private string? ChannelErrorMessage { get; set; }
+    private ValidationEditContext? _openChannelEditContext;
+    private OpenChannelModel? ChannelModel { get; set; } = new();
+
+    private bool PeerConnecting { get; set; }
+    private string? ConnectSuccessMessage { get; set; }
+    private string? ConnectErrorMessage { get; set; }
+    private ValidationEditContext? _connectEditContext;
+    private ConnectPeerModel? PeerModel { get; set; } = new();
+
+    private class OpenChannelModel
+    {
+        [Required] public string? PeerId { get; set; }
+        [Required] public decimal? Amount { get; set; }
+    }
+
+    private class ConnectPeerModel
+    {
+        [Required] public string? PeerUrl { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (await LightningNodeManager.CanConfigureLightningNode())
+        {
+            NavigationManager.NavigateTo(Routes.LightningSettings);
+        }
+        else
+        {
+            _ = FetchData();
+        }
+    }
+
+    private async Task FetchData()
+    {
+        if (Node == null) return;
+        Loading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await _semaphore.WaitAsync();
+            _config = await Node.GetConfig();
+            _channels = await Node.GetChannels();
+            _peers = await GetPeers(_config.Peers);
+        }
+        finally
+        {
+            Loading = false;
+            await InvokeAsync(StateHasChanged);
+            _semaphore.Release();
+        }
+    }
+
+    private async Task<IEnumerable<LightningPeerModel>?> GetPeers(Dictionary<string, PeerInfo> peerInfos)
+    {
+        if (Node == null) return [];
+        var peers = await Node.GetPeers();
+        var connected = peers
+            .Select(peer =>
+            {
+                var nodeId = Convert.ToHexString(peer.get_counterparty_node_id());
+                var remembered = peerInfos.TryGetValue(nodeId.ToLowerInvariant(), out var peerConfig);
+                var socket = peer.get_socket_address() is Option_SocketAddressZ.Option_SocketAddressZ_Some some1 ? some1.some.to_str() : null;
+                EndPointParser.TryParse(socket, 9735, out var endpoint);
+                return new LightningPeerModel
+                {
+                    NodeId = nodeId,
+                    Socket = socket,
+                    Connected = true,
+                    Remembered = remembered,
+                    Info = peerConfig ?? new PeerInfo { Endpoint = endpoint }
+                };
+            });
+
+        var unconnected = peerInfos.Keys
+            .Where(nodeId => connected.All(p => !string.Equals(p.NodeId, nodeId, StringComparison.InvariantCultureIgnoreCase)))
+            .Select(nodeId =>
+            {
+                var remembered = peerInfos.TryGetValue(nodeId, out var peerConfig);
+                return new LightningPeerModel
+                {
+                    NodeId = nodeId,
+                    Socket = peerConfig?.Endpoint?.ToEndpointString(),
+                    Connected = false,
+                    Remembered = remembered,
+                    Info = peerConfig ?? new PeerInfo { Endpoint = peerConfig?.Endpoint }
+                };
+            });
+
+        return connected.Concat(unconnected);
+    }
+
+    private async Task ConnectToNewPeer()
+    {
+        if (Node == null || PeerModel == null) return;
+        ConnectSuccessMessage = ConnectErrorMessage = null;
+        try
+        {
+            Loading = true;
+            await InvokeAsync(StateHasChanged);
+            await _semaphore.WaitAsync();
+            if (!NodeInfo.TryParse(PeerModel.PeerUrl, out var nodeInfo))
+            {
+                ConnectErrorMessage = $"Invalid peer URL: {PeerModel.PeerUrl}";
+                return;
+            }
+
+            var result = await Node.PeerHandler.ConnectAsync(nodeInfo, CancellationToken.None);
+            if (result is not null)
+            {
+                _peers = await GetPeers(_config.Peers);
+                ConnectSuccessMessage = $"Connection to {PeerModel.PeerUrl} initiated";
+                PeerModel = new ConnectPeerModel();
+            }
+            else
+            {
+                ConnectErrorMessage = "Error establishing connection";
+            }
+        }
+        catch (Exception e)
+        {
+            ConnectErrorMessage = e.Message;
+        }
+        finally
+        {
+            Loading = false;
+            _semaphore.Release();
+            await InvokeAsync(StateHasChanged);
+        }
+
+        /*if (string.IsNullOrEmpty(ConnectErrorMessage))
+            _ = FetchData();*/
+    }
+
+    private async Task DisconnectPeer(LightningPeerModel peer)
+    {
+        if (Node == null) return;
+        try
+        {
+            Loading = true;
+            await InvokeAsync(StateHasChanged);
+            await _semaphore.WaitAsync();
+            await Node.PeerHandler.DisconnectAsync(new PubKey(peer.NodeId));
+        }
+        finally
+        {
+            Loading = false;
+            _semaphore.Release();
+            await InvokeAsync(StateHasChanged);
+        }
+        _ = FetchData();
+    }
+
+    private async Task UpdatePeer(LightningPeerModel peer)
+    {
+        if (Node == null) return;
+        try
+        {
+            Loading = true;
+            await InvokeAsync(StateHasChanged);
+            await _semaphore.WaitAsync();
+            await Node.Peer(new PubKey(peer.NodeId), peer.Info);
+        }
+        finally
+        {
+            Loading = false;
+            await InvokeAsync(StateHasChanged);
+            _semaphore.Release();
+        }
+        _ = FetchData();
+    }
+
+    private async Task ConnectPeer(LightningPeerModel peer)
+    {
+        if (Node == null) return;
+        try
+        {
+            Loading = true;
+            await InvokeAsync(StateHasChanged);
+            await _semaphore.WaitAsync();
+
+            if (EndPointParser.TryParse(peer.Socket, 9735, out var endpoint))
+                await Node.PeerHandler.ConnectAsync(new PubKey(peer.NodeId), endpoint);
+        }
+        finally
+        {
+            Loading = false;
+            await InvokeAsync(StateHasChanged);
+            _semaphore.Release();
+        }
+        _ = FetchData();
+    }
+
+    private async Task OpenChannel()
+    {
+        if (Loading || Node == null || ChannelModel?.Amount is null || string.IsNullOrEmpty(ChannelModel.PeerId)) return;
+        try
+        {
+            ChannelSuccessMessage = ChannelErrorMessage = null;
+            ChannelOpening = true;
+            await InvokeAsync(StateHasChanged);
+            await _semaphore.WaitAsync();
+            var amount = new Money(ChannelModel.Amount.Value, MoneyUnit.Satoshi);
+            var result = await Node.OpenChannel(amount, new PubKey(ChannelModel.PeerId));
+            if (result is Result_ChannelIdAPIErrorZ.Result_ChannelIdAPIErrorZ_OK ok)
+            {
+                ChannelSuccessMessage = $"Channel creation started with id {Convert.ToHexString(ok.res.get_a())}";
+                ChannelModel = new OpenChannelModel();
+            }
+            else if (result is Result_ChannelIdAPIErrorZ.Result_ChannelIdAPIErrorZ_Err err)
+            {
+                ChannelErrorMessage = $"Error: {err.err.GetError()}";
+            }
+        }
+        catch (Exception e)
+        {
+            ChannelErrorMessage = e.Message;
+        }
+        finally
+        {
+            _semaphore.Release();
+            ChannelOpening = false;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        if (string.IsNullOrEmpty(ChannelErrorMessage))
+            _ = FetchData();
+    }
+
+    private async Task ParseChannelRequest(string lnurl, string name, bool trusted)
+    {
+        if (Loading || Node == null || ChannelModel?.Amount is null || string.IsNullOrEmpty(ChannelModel.PeerId)) return;
+        try
+        {
+            ChannelSuccessMessage = ChannelErrorMessage = null;
+            ChannelOpening = true;
+            await InvokeAsync(StateHasChanged);
+
+            var uri = LNURL.Parse(lnurl, out var tag);
+            var http = HttpClientFactory.CreateClient();
+            var channelRequest = (LNURLChannelRequest) await LNURL.FetchInformation(uri, tag, http, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
+            if (channelRequest is null)
+            {
+                ChannelErrorMessage = "The channel request is invalid";
+                return;
+            }
+
+
+            if (!EndPointParser.TryParse($"{channelRequest.Uri.Host}:{channelRequest.Uri.Port}", 9735, out var endpoint))
+            {
+                ChannelErrorMessage = "The channel request provided an invalid endpoint for the peer";
+                return;
+            }
+
+            await Node.Peer(channelRequest.Uri.NodeId, new PeerInfo {Endpoint = endpoint, Label = name, Trusted = trusted});
+            await ConnectPeer(new LightningPeerModel { NodeId = channelRequest.Uri.NodeId.ToString(), Socket = endpoint.ToEndpointString() });
+            await channelRequest.SendRequest(Node.NodeId, true, http, new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token);
+            ChannelSuccessMessage = "Successfully initiated channel creation. Please wait for the peer to execute.";
+        }
+        catch (Exception e)
+        {
+            ChannelErrorMessage = e.Message;
+        }
+        finally
+        {
+            if(ChannelSuccessMessage is null && ChannelErrorMessage is null)
+                ChannelErrorMessage = "Error opening channel";
+            _semaphore.Release();
+            ChannelOpening = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        if (string.IsNullOrEmpty(ChannelErrorMessage))
+            _ = FetchData();
+    }
+
+    private void ToggleDisplayCurrency()
+    {
+        if (ChannelModel?.Amount.HasValue is true)
+            ChannelModel.Amount = new Money(ChannelModel.Amount.Value, UnitMoney).ToDecimal(UnitMoney == MoneyUnit.Satoshi
+                ? MoneyUnit.BTC
+                : MoneyUnit.Satoshi);
+        Dispatcher.Dispatch(new UIState.ToggleDisplayCurrency());
+    }
+}

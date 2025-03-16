@@ -1,0 +1,47 @@
+@using BTCPayServer.Client.Models
+<div @attributes="InputAttributes" class="@CssClass">
+    @if (Invoices is not null)
+    {
+        @if (Invoices.Any())
+        {
+            @foreach (var i in Invoices)
+            {
+                <InvoiceItem Invoice="@i" class="box"/>
+            }
+        }
+        else if (!string.IsNullOrEmpty(Error))
+        {
+            <Alert Type="danger">@Error</Alert>
+        }
+        else
+        {
+            <div class="box">
+                <p class="text-muted my-0">There are no invoices, yet.</p>
+            </div>
+        }
+    }
+    else if (Loading)
+    {
+        <div class="box">
+            <div class="p-3 text-center">
+                <LoadingIndicator/>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public IEnumerable<InvoiceData>? Invoices { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    private string CssClass => $"invoice-list {(InputAttributes?.ContainsKey("class") is true ? InputAttributes["class"] : "")}".Trim();
+}

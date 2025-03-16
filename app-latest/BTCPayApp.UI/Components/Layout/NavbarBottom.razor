@@ -1,0 +1,82 @@
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.UI.Features
+@using BTCPayServer.Client
+@inject IState<UIState> UiState
+@inject NavigationManager NavigationManager
+@inject IAccountManager AccountManager
+@implements IDisposable
+
+<nav id="NavbarBottom">
+    <div class="container d-flex align-items-center justify-content-between">
+        <ul class="navbar-nav">
+            <AuthorizeView Policy="@Policies.CanCreateInvoice" Resource="StoreId">
+                <li class="nav-item">
+                    <NavLink href="@Routes.PointOfSale" Match="NavLinkMatch.All" class="@(HasStore ? CheckoutCssClass() : "nav-link disabled")" aria-disabled="@(HasStore ? null : true)">
+                        <Icon Symbol="nav-keypad"/>
+                        <span>Checkout</span>
+                    </NavLink>
+                </li>
+            </AuthorizeView>
+            <AuthorizeView Policy="@Policies.CanModifyStoreSettings" Resource="StoreId">
+                <li class="nav-item">
+                    <NavLink href="@Routes.Dashboard" Match="NavLinkMatch.All" class="@(HasStore ? HomeCssClass() : "nav-link disabled")" aria-disabled="@(HasStore ? null : true)">
+                        <Icon Symbol="nav-store"/>
+                        <span>Dashboard</span>
+                    </NavLink>
+                </li>
+            </AuthorizeView>
+            <AuthorizeView Policy="@Policies.CanViewInvoices" Resource="StoreId">
+                <li class="nav-item">
+                    <NavLink href="@Routes.Invoices" Match="NavLinkMatch.Prefix" class="@(HasStore ? "nav-link" : "nav-link disabled")" aria-disabled="@(HasStore ? null : true)">
+                        <Icon Symbol="nav-invoices"/>
+                        <span>Invoices</span>
+                    </NavLink>
+                </li>
+            </AuthorizeView>
+            <li class="nav-item">
+                <NavLink href="@Routes.Settings" Match="NavLinkMatch.Prefix" class="nav-link">
+                    <Icon Symbol="settings"/>
+                    <span>Settings</span>
+                </NavLink>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+
+    private string HomeCssClass()
+    {
+        var c = "nav-link";
+        if (RelativePath.StartsWith(Routes.Notifications)) c += " active";
+        if (RelativePath.StartsWith(Routes.Withdraw)) c += " active";
+        return c;
+    }
+
+    private string CheckoutCssClass()
+    {
+        var c = "nav-link";
+        if (RelativePath.StartsWith(Routes.PointOfSale)) c += " active";
+        if (RelativePath.StartsWith(Routes.CheckoutPath(""))) c += " active";
+        return c;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        StateHasChanged();
+    }
+
+    private bool HasStore => StoreId != null;
+    private string? StoreId => AccountManager.CurrentStore?.Id;
+    private string RelativePath => "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+}

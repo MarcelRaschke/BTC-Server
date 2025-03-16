@@ -1,0 +1,33 @@
+#MainLayout {
+  min-height: -webkit-fill-available;
+  min-height: 100dvh;
+  scroll-padding-top: calc(var(--sticky-header-height) + var(--btcpay-space-m));
+}
+
+@media (max-width: 991px) {
+  #MainLayout {
+    /* Prevent anchors from disappearing underneath the fixed header */
+    scroll-padding: var(--content-padding-top);
+  }
+}
+
+#MainContent ::deep h1 {
+  font-size: var(--btcpay-font-size-xl);
+  margin-bottom: 0;
+}
+
+#MainContent ::deep h2 {
+  font-size: var(--btcpay-font-size-l);
+  font-weight: var(--btcpay-font-weight-semibold);
+  margin-bottom: var(--btcpay-space-m);
+}
+
+#MainContent ::deep h3 {
+  font-size: var(--btcpay-font-size-m);
+  font-weight: var(--btcpay-font-weight-semibold);
+  margin-bottom: var(--btcpay-space-s);
+}
+
+#MainContent ::deep .box {
+  margin-bottom: var(--btcpay-space-l);
+}

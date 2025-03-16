@@ -1,0 +1,45 @@
+@inject IJSRuntime JS
+
+<section id="Titlebar" class="@(Fixed ? "fixed" : null)">
+    <div class="container d-flex align-items-center justify-content-between">
+        <div class="titlebar-start">
+            @if (BackCallback.HasDelegate)
+            {
+                <button type="button" class="btn-icon" @onclick="BackCallback">
+                    <Icon Symbol="back"/>
+                </button>
+            }
+            else if (!string.IsNullOrEmpty(BackLink) || Back)
+            {
+                <a class="btn-icon" href="@(BackLink ?? "#")" onclick="history.back();return false;">
+                    <Icon Symbol="back"/>
+                </a>
+            }
+        </div>
+        <div class="titlebar-center">
+            @ChildContent
+        </div>
+        <div class="titlebar-end">
+            <SectionOutlet SectionId="End"/>
+        </div>
+    </div>
+</section>
+
+@code {
+    public static readonly SectionOutlet End = new();
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback BackCallback { get; set; }
+
+    [Parameter]
+    public string? BackLink { get; set; }
+
+    [Parameter]
+    public bool Back { get; set; }
+
+    [Parameter]
+    public bool Fixed { get; set; } = true;
+}

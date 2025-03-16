@@ -1,0 +1,128 @@
+﻿@attribute [Route(Routes.Register)]
+@inherits SignedOutBasePage
+@using BTCPayApp.Core.Auth
+@inject IAccountManager AccountManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>@GetTitle()</PageTitle>
+<AuthorizeView>
+    <NotAuthorized>
+        <SectionContent SectionId="_Layout.MainTop">
+            <InstanceLogo/>
+            <h1>@GetTitle()</h1>
+            @if (!string.IsNullOrEmpty(Error))
+            {
+                <Alert Type="danger">@Error</Alert>
+            }
+        </SectionContent>
+
+        <ValidationEditContext @ref="ValidationEditContext" Model="Model" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <div class="form-group">
+                <div class="d-flex justify-content-between">
+                    <label for="Uri" class="form-label">Server URL</label>
+                    @if (InstanceLoading)
+                    {
+                        <LoadingIndicator />
+                    }
+                </div>
+                <InputText @bind-Value="Model.Uri" @bind-Value:after="() => ResolveInstanceInfo(Model.Uri)" id="Uri" class="form-control"/>
+                <ValidationMessage For="@(() => Model.Uri)" />
+            </div>
+            <div class="form-group">
+                <label for="Email" class="form-label">Email</label>
+                <InputText @bind-Value="Model.Email" type="email" id="Email" class="form-control" disabled="@GetRegistrationEnabled()"/>
+                <ValidationMessage For="@(() => Model.Email)" />
+            </div>
+            <div class="form-group">
+                <label for="Password" class="form-label">Password</label>
+                <InputText @bind-Value="Model.Password" type="password" id="Password" class="form-control" disabled="@GetRegistrationEnabled()"/>
+                <ValidationMessage For="@(() => Model.Password)" />
+            </div>
+            <div class="form-group">
+                <label for="ConfirmPassword" class="form-label">Confirm Password</label>
+                <InputText @bind-Value="Model.ConfirmPassword" type="password" id="ConfirmPassword" class="form-control" disabled="@GetRegistrationEnabled()"/>
+                <ValidationMessage For="@(() => Model.ConfirmPassword)" />
+            </div>
+            <button type="submit" class="btn btn-primary w-100" data-testid="RegisterButton" disabled="@(GetRegistrationEnabled() || Sending)">
+                @if (Sending)
+                {
+                    <LoadingIndicator />
+                }
+                else
+                {
+                    <span>Create account</span>
+                }
+            </button>
+
+            <p class="mt-4 text-center">
+                <NavLink href="@GetLoginUrl()">Back to login</NavLink>
+            </p>
+        </ValidationEditContext>
+    </NotAuthorized>
+    <Authorized>
+        <RedirectToIndex/>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private RegisterModel Model { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        if (!string.IsNullOrEmpty(ServerUrl))
+        {
+            Model.Uri = Uri.UnescapeDataString(ServerUrl);
+        }
+
+        ResolveInstanceInfo(Model.Uri);
+    }
+
+    public async Task HandleValidSubmit()
+    {
+        ErrorMessage = null;
+        Sending = true;
+
+        var url = GetBaseUri(Model.Uri);
+        var result = await AccountManager.Register(url, Model.Email!, Model.Password!);
+        Sending = false;
+        var authState = AuthState != null ? await AuthState : null;
+        if (authState?.User.Identity?.IsAuthenticated is true) return;
+
+        if (result.Succeeded)
+        {
+            var successMessage = string.Join(",", result.Messages ?? ["Account created."]);
+            var uri = NavigationManager.GetUriWithQueryParameters(GetLoginUrl(),
+                new Dictionary<string, object?> { {"success", successMessage } } );
+            NavigationManager.NavigateTo(uri);
+        }
+        else
+        {
+            ErrorMessage = result.Messages != null
+                ? string.Join(",", result.Messages)
+                : "Invalid signup attempt.";
+        }
+    }
+
+    private class RegisterModel
+    {
+        [Required, Url]
+        public string? Uri { get; set; }
+
+        [Required, EmailAddress]
+        public string? Email { get; set; }
+
+        [Required, DataType(DataType.Password)]
+        public string? Password { get; set; }
+
+        [DataType(DataType.Password)]
+        [Compare("Password", ErrorMessage = "The password and its confirmation do not match.")]
+        public string? ConfirmPassword { get; set; }
+    }
+
+    private string GetTitle() => $"Create account{(string.IsNullOrEmpty(InstanceInfo?.ServerName) ? null : $" at {InstanceInfo.ServerName}")}";
+    private string GetLoginUrl() => NavigationManager.GetUriWithQueryParameters(Routes.Login, new Dictionary<string, object?> { {"serverUrl", Model.Uri } } );
+    private bool GetRegistrationEnabled() => InstanceInfo is not { RegistrationEnabled: true };
+}

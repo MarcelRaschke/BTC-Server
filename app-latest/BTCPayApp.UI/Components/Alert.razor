@@ -1,0 +1,28 @@
+<div role="alert" @attributes="InputAttributes" class="@CssClass">
+    @ChildContent
+    @if (Dismissible)
+    {
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
+            <Icon Symbol="close" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter, EditorRequired]
+    public string? Type { get; set; }
+
+    [Parameter]
+    public bool Dismissible { get; set; }
+
+    [Parameter]
+    public int Margin { get; set; } = 4;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    private string CssClass => $"alert alert-{Type} mb-{Margin} text-break {(Dismissible ? "alert-dismissible " : "")}{(InputAttributes?.ContainsKey("class") is true ? InputAttributes["class"] : "")}".Trim();
+}

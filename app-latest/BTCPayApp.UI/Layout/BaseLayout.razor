@@ -1,0 +1,11 @@
+﻿@inherits _Layout
+
+<div id="BaseLayout" class="layout">
+    <SectionOutlet SectionId="Top" />
+    <main id="MainContent">
+        <SectionOutlet SectionId="MainTop" />
+        @Body
+        <SectionOutlet SectionId="MainBottom" />
+    </main>
+    <SectionOutlet SectionId="Bottom" />
+</div>

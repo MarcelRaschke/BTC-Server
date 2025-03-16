@@ -1,0 +1,74 @@
+@using BTCPayApp.UI.Util
+@using BTCPayServer.Client.Models
+@implements IDisposable
+@inject IJSRuntime JS
+@inject DisplayFormatter DisplayFormatter
+
+<div @attributes="InputAttributes" class="@CssClass">
+    @if (Sats != null)
+    {
+        <div class="amount text-center">
+            @if (Sats.HasValue)
+            {
+                <AmountDisplay Sats="Sats.Value" Rate="@Rate" Currency="@Currency" OnChangeDisplayCurrency="HandleBalanceClick" class="fw-bold fs-1" />
+            }
+            else if (Loading is true)
+            {
+                <LoadingIndicator/>
+            }
+        </div>
+    }
+    else if (Loading is true || string.IsNullOrEmpty(Error))
+    {
+        <div class="p-3 text-center">
+            <LoadingIndicator/>
+        </div>
+    }
+    <div id="Histogram" class="ct-chart"></div>
+</div>
+
+@code {
+    [Parameter]
+    public long? Sats { get; set; }
+
+    [Parameter]
+    public HistogramData? Histogram { get; set; }
+
+    [Parameter]
+    public string? Currency { get; set; }
+
+    [Parameter]
+    public decimal? Rate { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool? Loading { get; set; }
+
+    [Parameter]
+    public EventCallback<NotificationData> OnBalanceClick { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    private async Task HandleBalanceClick()
+    {
+        if (OnBalanceClick.HasDelegate)
+            await OnBalanceClick.InvokeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Histogram != null)
+            await JS.InvokeVoidAsync("Chart.renderLineChart", "#Histogram", Histogram.Labels, Histogram.Series, Histogram.Type.ToString(), "BTC", Rate, Currency);
+    }
+
+    public void Dispose()
+    {
+        if (Histogram != null)
+            JS.InvokeVoidAsync("Chart.dispose", "#Histogram");
+    }
+
+    private string CssClass => $"d-flex flex-column gap-4 wallet-overview {(InputAttributes?.ContainsKey("class") is true ? InputAttributes["class"] : "")}".Trim();
+}

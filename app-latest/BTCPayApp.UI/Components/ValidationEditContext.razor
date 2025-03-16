@@ -1,0 +1,115 @@
+﻿@using System.Linq.Expressions
+@implements IDisposable
+
+<EditForm EditContext="EditContext" OnSubmit="@OnSubmit" @attributes="@InputAttributes">
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <Alert Type="danger">@ErrorMessage</Alert>
+    }
+    else if (!string.IsNullOrEmpty(SuccessMessage))
+    {
+        <Alert Type="success">@SuccessMessage</Alert>
+    }
+    else
+    {
+        <DataAnnotationsValidator/>
+    }
+    <CascadingValue Value="MessageStore">
+        <CascadingValue Value="this">
+            @ChildContent
+        </CascadingValue>
+    </CascadingValue>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired]
+    public object Model { get; set; } = null!;
+
+    [Parameter]
+    public Func<Task>? Validate { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback OnValidSubmit { get; set; }
+
+    [Parameter]
+    public EventCallback OnInvalidSubmit { get; set; }
+
+    [Parameter]
+    public string? SuccessMessage { get; set; }
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    public EditContext? EditContext { get; set; }
+    public ValidationMessageStore? MessageStore { get; set; }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        EditContext = new EditContext(Model);
+        MessageStore = new ValidationMessageStore(EditContext);
+        EditContext.OnFieldChanged += EditContextOnOnFieldChanged;
+        EditContext.OnValidationRequested += EditContextOnOnValidationRequested;
+        EditContext.OnValidationStateChanged += EditContextOnOnValidationStateChanged;
+        EditContext.Validate();
+    }
+
+    private void EditContextOnOnValidationRequested(object? sender, ValidationRequestedEventArgs e)
+    {
+    }
+
+    private void EditContextOnOnFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        if (!EditContext?.GetValidationMessages(e.FieldIdentifier).Any() is true) return;
+        MessageStore?.Clear(e.FieldIdentifier);
+        EditContext?.NotifyValidationStateChanged();
+    }
+
+    public void NotifyFieldChanged(Expression<Func<object>> field)
+    {
+        EditContext?.NotifyFieldChanged(FieldIdentifier.Create(field));
+    }
+
+    private void EditContextOnOnValidationStateChanged(object? sender, ValidationStateChangedEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    private async Task OnSubmit(EditContext obj)
+    {
+        if (Validate is not null)
+            await Validate.Invoke();
+        EditContext?.Validate();
+
+        if (Invalid)
+        {
+            await OnInvalidSubmit.InvokeAsync();
+        }
+        else
+        {
+            await OnValidSubmit.InvokeAsync();
+        }
+    }
+
+    public bool Invalid => EditContext?.GetValidationMessages().Any() is true;
+
+    public async Task Submit()
+    {
+        if (EditContext != null) await OnSubmit(EditContext);
+    }
+
+    public void Dispose()
+    {
+        if (EditContext == null) return;
+        EditContext.OnFieldChanged -= EditContextOnOnFieldChanged;
+        EditContext.OnValidationRequested -= EditContextOnOnValidationRequested;
+        EditContext.OnValidationStateChanged -= EditContextOnOnValidationStateChanged;
+    }
+}

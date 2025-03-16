@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+    https://developer.android.com/develop/ui/views/theming/themes#Inheritance
+    https://developer.android.com/develop/ui/views/theming/dynamic-colors
+
+    <color name="colorPrimary">#F8F9FA</color>
+    <color name="colorPrimaryDark">#FFFFFF</color>
+    <color name="colorOnPrimary">#292929</color>
+    -->
+    <color name="colorAccent">#51B13E</color>
+</resources>

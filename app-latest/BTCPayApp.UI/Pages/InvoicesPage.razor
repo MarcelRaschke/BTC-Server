@@ -1,0 +1,46 @@
+﻿@attribute [Route(Routes.Invoices)]
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.Core.Models
+@using BTCPayApp.UI.Features
+@using BTCPayServer.Client
+@using BTCPayServer.Client.Models
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IAccountManager AccountManager
+@inject IState<StoreState> StoreState
+
+<PageTitle>Invoices</PageTitle>
+
+<section class="container">
+    <header class="d-flex align-items-center justify-content-between gap-3 my-4">
+        <h1>Invoices</h1>
+    </header>
+    @if (string.IsNullOrEmpty(StoreId))
+    {
+        <Alert Type="info">Please configure a store first.</Alert>
+    }
+    else if (!string.IsNullOrEmpty(StoreInfo?.Id))
+    {
+        <AuthorizeView Policy="@Policies.CanViewInvoices" Resource="@StoreInfo.Id">
+            <Authorized>
+                <InvoiceList Invoices="Invoices" Loading="Loading" Error="@Error"/>
+            </Authorized>
+            <NotAuthorized>
+                <Alert Type="danger">Unauthorized.</Alert>
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+    else
+    {
+        <div class="p-3 text-center">
+            <LoadingIndicator/>
+        </div>
+    }
+</section>
+
+@code {
+    private string? StoreId => AccountManager.CurrentStore?.Id;
+    private AppUserStoreInfo? StoreInfo => StoreState.Value.StoreInfo;
+    private IEnumerable<InvoiceData>? Invoices => StoreState.Value.Invoices?.Data;
+    private bool Loading => StoreState.Value.Invoices?.Loading is true;
+    private string? Error => StoreState.Value.Invoices?.Error;
+}

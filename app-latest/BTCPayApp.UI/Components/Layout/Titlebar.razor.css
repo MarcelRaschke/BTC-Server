@@ -1,0 +1,36 @@
+#Titlebar {
+  height: var(--navbar-top-height);
+  display: flex;
+  justify-content: space-between;
+  background-color: var(--btcpay-body-bg);
+}
+
+#Titlebar.fixed {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1030;
+}
+
+.titlebar-start,
+.titlebar-end {
+  flex: 0 0 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.titlebar-center {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  padding: var(--btcpay-space-xs) var(--btcpay-space-s);
+}
+
+::deep h1 {
+  font-size: 1rem;
+  font-weight: var(--btcpay-font-weight-semibold);
+  margin: 0;
+}

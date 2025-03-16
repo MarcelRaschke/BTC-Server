@@ -1,0 +1,384 @@
+﻿:root {
+  --sticky-header-height: 0; /* gets dynamically set via JavaScript */
+  --navbar-top-height: 4rem;
+  --navbar-bottom-height: 4rem;
+  --sidebar-width: 280px;
+  --icon-size: 1.5rem;
+  --chart-main-rgb: 68, 164, 49;
+  --chart-series-a-rgb: var(--chart-main-rgb);
+  --chart-series-b-rgb: 245, 0, 0;
+  --chart-series-c-rgb: 0, 109, 242;
+  --chart-series-d-rgb: 255, 188, 4;
+  --chart-series-e-rgb: 160, 98, 75;
+}
+
+::-moz-focus-inner {
+  padding: 0;
+  border-style: none;
+}
+
+:focus {
+  outline: none;
+}
+
+[aria-expanded] > svg.icon-caret-down {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  transition: transform 0.2s ease-in-out;
+}
+
+[aria-expanded="true"] > svg.icon-caret-down {
+  transform: rotate(-180deg);
+}
+
+.validation-message + .validation-message {
+  display: none;
+}
+
+/* Layout */
+#MainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+#Titlebar.fixed ~ #MainContent {
+  min-height: 100dvh;
+  padding-top: var(--navbar-top-height);
+}
+
+#Titlebar:not(.fixed) ~ #MainContent {
+  min-height: calc(100dvh - var(--navbar-top-height));
+}
+
+#NavbarBottom ~ #MainContent {
+  padding-bottom: var(--navbar-bottom-height);
+  min-height: 100dvh;
+}
+
+#MainContent > section.container:last-child {
+  margin-bottom: var(--btcpay-space-l);
+}
+
+#MainContent > section.container:last-child > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+.public-page-wrap {
+  --wrap-max-width: none;
+  --wrap-padding-vertical: var(--btcpay-space-l);
+  --wrap-padding-horizontal: var(--btcpay-space-m);
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: var(--wrap-max-width);
+  margin: 0 auto;
+  padding: var(--wrap-padding-vertical) var(--wrap-padding-horizontal);
+}
+
+.layout,
+.min-vh-100,
+.public-page-wrap {
+  min-height: -webkit-fill-available !important;
+  min-height: 100dvh !important;
+}
+
+.tile {
+  --section-padding: 1.5rem;
+  --section-border-radius: var(--btcpay-border-radius-l);
+
+  padding: var(--section-padding);
+  background: var(--btcpay-bg-tile);
+  border-radius: var(--section-border-radius);
+  box-shadow: var(--btcpay-box-shadow-lg);
+}
+.tile .buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--btcpay-space-m);
+}
+.tile > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 400px) {
+  .public-page-wrap {
+    padding-left: 0;
+    padding-right: 0;
+    --wrap-padding-horizontal: 0;
+  }
+  .tile {
+    --section-padding: 1rem;
+    --section-border-radius: none;
+  }
+}
+
+/* Badges */
+.badge-new,
+.badge-pending {
+  background: #d4edda;
+  color: #000;
+}
+.badge-expired {
+  background: #eee;
+  color: #000;
+}
+.badge-invalid {
+  background: var(--btcpay-danger);
+  color: var(--btcpay-danger-text);
+}
+.badge-unusual,
+.badge-processing {
+  background: var(--btcpay-warning);
+  color: var(--btcpay-warning-text);
+}
+.badge-settled {
+  background: var(--btcpay-success);
+  color: var(--btcpay-success-text);
+}
+
+/* Box */
+.box {
+  padding: var(--btcpay-space-m);
+  background: var(--btcpay-light);
+  border-radius: var(--btcpay-border-radius-xl);
+}
+
+.box > .list-group-flush:first-child {
+  margin-top: calc(var(--btcpay-space-s) * -1);
+}
+
+.box > .list-group-flush:last-child {
+  margin-bottom: calc(var(--btcpay-space-s) * -1);
+}
+
+.box > :last-child {
+  margin-bottom: 0;
+}
+
+/* Profile Picture */
+.profile-picture {
+  height: var(--profile-picture-size, 2.1rem);
+  width: var(--profile-picture-size, 2.1rem);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* List Group */
+.list-group-flush .list-group-item {
+  --btcpay-list-group-item-padding-x: 0;
+  --btcpay-list-group-bg: transparent;
+}
+
+.list-group-flush .list-group-item.disabled,
+.list-group-flush .list-group-item:disabled {
+  --btcpay-list-group-disabled-bg: transparent;
+}
+
+.list-group-flush.list-group-links .list-group-item {
+  --btcpay-list-group-item-padding-y: 0;
+}
+
+.list-group-flush.list-group-links .list-group-item > a,
+.list-group-flush.list-group-links .list-group-item > button {
+  width: 100%;
+  padding: .75rem 0;
+  color: var(--btcpay-nav-link-color);
+}
+
+.list-group-flush.list-group-links .list-group-item > a:hover,
+.list-group-flush.list-group-links .list-group-item > button:hover {
+  color: var(--btcpay-nav-link-hover-color);
+}
+
+.list-group-flush.list-group-links .list-group-item > a,
+.list-group-flush.list-group-links .list-group-item > div,
+.list-group-flush.list-group-links .list-group-item > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--btcpay-space-m);
+  font-weight: var(--btcpay-font-weight-semibold);
+}
+
+.list-group-flush.list-group-links .list-group-item > * > .icon:first-child {
+  --icon-size: 2rem;
+  padding: var(--btcpay-space-xs);
+  background: var(--btcpay-neutral-400);
+  border-radius: var(--btcpay-border-radius-l);
+  margin: calc(var(--btcpay-space-xs) * -1) 0;
+}
+
+.list-group-flush.list-group-links .list-group-item > * > .icon:last-child {
+  margin-left: auto;
+  color: var(--btcpay-body-text-muted);
+}
+
+/* Icon Button */
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  padding: .5rem;
+  box-sizing: content-box;
+  color: var(--btcpay-body-text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  border-radius: var(--btcpay-border-radius);
+  opacity: .5;
+  text-decoration: none;
+}
+
+.btn-icon:focus,
+.btn-icon:hover {
+  opacity: .75;
+}
+
+.btn-icon.active {
+  opacity: 1;
+}
+
+.btn-icon:disabled,
+.btn-icon.disabled {
+  pointer-events: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  opacity: .25;
+}
+
+.btn-icon .icon {
+  position: static;
+  top: auto;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.btn-icon .icon.icon-close {
+  --icon-size: 1.25rem;
+}
+
+.btn .icon {
+  --icon-size: inherit;
+}
+
+.btn-close .icon {
+  --icon-size: .75rem;
+}
+
+.icon.icon-info {
+  --icon-size: 1.125rem;
+  position: relative;
+  top: -.1em;
+  color: var(--btcpay-neutral-500);
+}
+
+/* Forms */
+.form-floating label {
+  padding-left: 0;
+  text-transform: uppercase;
+  letter-spacing: .1rem;
+  font-weight: var(--btcpay-font-weight-semibold);
+}
+.form-floating button {
+  padding: 0 0 var(--btcpay-space-xs) 0;
+  font-weight: var(--btcpay-font-weight-semibold);
+}
+
+/* Definition List */
+dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--btcpay-space-m);
+}
+dl > div dt,
+dl > div dd {
+  margin: 0;
+  padding: var(--btcpay-space-xs) 0;
+  font-weight: var(--btcpay-font-weight-normal);
+}
+dl > div dt {
+  text-align: left;
+  white-space: nowrap;
+  color: var(--btcpay-body-text-muted);
+}
+dl > div dd {
+  text-align: right;
+  word-wrap: break-word;
+  word-break: break-word;
+  max-width: 62.5%;
+}
+
+/* Keypad */
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.keypad .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  border-radius: 0;
+  border-color: transparent !important;
+  font-weight: var(--btcpay-font-weight-semibold);
+  font-size: 24px;
+  min-height: 3.5rem;
+  height: 8vh;
+  max-height: 6rem;
+  color: var(--btcpay-body-text);
+}
+.keypad .btn[data-key="+"] {
+  font-size: 2.25em;
+}
+/* make borders collapse by shifting rows and columns by 1px */
+/* second column */
+.keypad .btn:nth-child(3n-1) {
+  margin-left: -1px;
+}
+/* third column */
+.keypad .btn:nth-child(3n) {
+  margin-left: -1px;
+}
+/* from second row downwards */
+.keypad .btn:nth-child(n+4) {
+  margin-top: -1px;
+}
+/* ensure highlighted button is topmost */
+.keypad .btn:hover,
+.keypad .btn:focus,
+.keypad .btn:active {
+  z-index: 1;
+}
+
+/* Blazor error */
+#blazor-error-ui {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background-color: var(--btcpay-danger);
+  color: var(--btcpay-danger-text);
+  padding: .6rem 1.75rem .7rem 1.25rem;
+}
+#blazor-error-ui .reload {
+  color: inherit;
+  text-decoration: underline;
+}
+#blazor-error-ui .dismiss{
+  position: absolute;
+  right: .75rem;
+  top: .5rem;
+  color: inherit;
+  cursor: pointer;
+}

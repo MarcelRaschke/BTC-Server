@@ -1,0 +1,13 @@
+﻿@using BTCPayApp.Core.Auth
+@attribute [Route(Routes.Logout)]
+@inject IAccountManager AccountManager
+
+<PageTitle>Logout</PageTitle>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await AccountManager.Logout();
+    }
+}

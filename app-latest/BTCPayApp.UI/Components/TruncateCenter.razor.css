@@ -1,0 +1,70 @@
+.truncate-center {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--btcpay-space-s);
+  max-width: 100%;
+}
+
+.truncate-center--elastic .truncate-center-start {
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.truncate-center-end,
+.truncate-center-start {
+  white-space: nowrap;
+}
+
+.truncate-center-id {
+  font-family: var(--btcpay-font-monospace);
+  font-size: .875em;
+}
+
+.truncate-center-text {
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.truncate-center a,
+.truncate-center button {
+  line-height: 1;
+}
+
+.truncate-center-truncated {
+  text-align: left;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.truncate-center ::deep .icon {
+  --icon-size: 1rem;
+}
+
+.truncate-center--elastic .truncate-center-truncated {
+  max-width: 100%;
+}
+
+.truncate-center--elastic.truncate-center--copy .truncate-center-truncated {
+  max-width: calc(100% - 2em);
+}
+
+.truncate-center.form-control-plaintext {
+  padding-right: 3px;
+  padding-left: 3px;
+  padding-bottom: 0;
+  font-weight: var(--btcpay-font-weight-semibold);
+}
+
+.truncate-center-id {
+  border: 1px solid var(--btcpay-body-border-medium);
+  border-radius: var(--btcpay-border-radius-l);
+  padding: var(--btcpay-space-xs) var(--btcpay-space-s);
+}
+
+.truncate-center-text {
+  color: transparent;
+  position: absolute;
+  pointer-events: none;
+}

@@ -1,0 +1,281 @@
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.Core.Contracts
+@using BTCPayApp.UI.Models
+@using BTCPayApp.UI.Util
+@using BTCPayServer.Client.Models
+@using Plk.Blazor.DragDrop
+@inject IJSRuntime JS
+@inject IAccountManager AccountManager
+@inject DisplayFormatter DisplayFormatter
+@inject IDataDirectoryProvider DataDirectoryProvider
+
+<div @attributes="InputAttributes" class="@CssClass">
+    <div class="row align-items-start">
+        <div class="col-12 col-xl-7">
+            @if (_items?.Any() is true)
+            {
+                <Dropzone Items="_items" InstantReplace="true" Class="items list-group list-group-flush" ItemWrapperClass='item => { return $"d-inline-flex align-items-center gap-3 list-group-item rounded {(SelectedItem != null && item.Id == SelectedItem.Id ? "active" : null)}"; }'>
+                    @{
+                        var hasImage = !string.IsNullOrEmpty(context.Image);
+                        var imageUrl = hasImage ? context.Image : "_content/BTCPayApp.UI/img/img-placeholder.svg";
+                    }
+                    <button type="button" class="btn b-0 control drag" disabled="@(_items.Count == 1)">
+                        <Icon Symbol="actions-drag"/>
+                    </button>
+                    <div class="template-item d-flex align-items-start w-100 gap-3" @onclick="async () => { await SelectItem(SelectedItem != null && context.Id == SelectedItem.Id ? null : context); }">
+                        <div class="img">
+                            <img src="@imageUrl" alt="@context.Title" style="@(hasImage ? null : "opacity:.5")">
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <h5 class="card-title m-0">@context.Title</h5>
+                            <div class="d-flex gap-2 align-items-center">
+                                @if (context.PriceType == AppItemPriceType.Topup || context.Price == 0)
+                                {
+                                    <span class="fw-semibold badge text-bg-info">@(context.PriceType == AppItemPriceType.Topup ? "Any amount" : "Free")</span>
+                                }
+                                else if (context.Price.HasValue)
+                                {
+                                    <span class="fw-semibold text-muted">
+                                        @DisplayFormatter.Currency(context.Price.Value, Currency, DisplayFormatter.CurrencyFormat.Symbol)
+                                        @(context.PriceType == AppItemPriceType.Minimum ? " minimum" : null)
+                                    </span>
+                                }
+                                @if (context.Inventory.HasValue)
+                                {
+                                    <span class="badge text-bg-warning">
+                                        @(context.Inventory > 0 ? $"{context.Inventory} left" : "Sold out")
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn b-0 control remove" @onclick="() => RemoveItem(context)">
+                        <Icon Symbol="actions-remove"/>
+                    </button>
+                </Dropzone>
+            }
+            <button type="button" id="btAddItem" class="btn btn-link py-0 px-2 mt-2 mb-2 gap-1 add fw-semibold d-inline-flex align-items-center" @onclick="AddItem">
+                <Icon Symbol="actions-add"/>
+                Add Item
+            </button>
+        </div>
+        <div class="col-xl-5 offcanvas-xl offcanvas-end" tabindex="-1" id="AppItemsEditorOffcanvas">
+            <div class="offcanvas-header justify-content-between p-3">
+                <h5 class="offcanvas-title">Edit Item</h5>
+                <button type="button" class="btn btn-sm rounded-pill btn-outline-secondary" @onclick="HideOffcanvas">Close</button>
+            </div>
+            <div class="offcanvas-body p-3 p-xl-0">
+                <div class="bg-tile w-100 p-xl-4 rounded">
+                    @if (SelectedItem != null)
+                    {
+                        <ValidationEditContext @ref="_validationEditContext" Model="SelectedItem" id="item-form" class="item" ErrorMessage="@_errorMessage">
+                            <DataAnnotationsValidator />
+                            <div class="form-group">
+                                <label for="Title" class="form-label" data-required>Title</label>
+                                <InputText @bind-Value="SelectedItem.Title" @bind-Value:after="GenerateId" id="Title" class="form-control"/>
+                                <ValidationMessage For="@(() => SelectedItem.Title)" />
+                            </div>
+                            <div class="form-group">
+                                <label for="Id" class="form-label" data-required>ID</label>
+                                <InputText @bind-Value="SelectedItem.Id" id="Id" class="form-control"/>
+                                <ValidationMessage For="@(() => SelectedItem.Id)" />
+                                <div class="form-text">Leave blank to generate ID from title.</div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-sm-6">
+                                    <label for="PriceType" class="form-label" data-required>Price</label>
+                                    <InputSelect @bind-Value="SelectedItem.PriceType" id="PriceType" class="form-select">
+                                        <option value="@AppItemPriceType.Fixed">Fixed</option>
+                                        <option value="@AppItemPriceType.Minimum">Minimum</option>
+                                        <option value="@AppItemPriceType.Topup">Custom</option>
+                                    </InputSelect>
+                                </div>
+                                @if (SelectedItem.PriceType != AppItemPriceType.Topup)
+                                {
+                                    <div class="col-sm-6">
+                                        <label for="Price" class="form-label">&nbsp;</label>
+                                        <div class="input-group mb-2">
+                                            <InputNumber @bind-Value="SelectedItem.Price" id="Price" class="form-control hide-number-spin" inputmode="decimal" min="0"
+                                                         pattern="\d*" step="any" aria-describedby="currency-addon"/>
+                                            <span class="input-group-text" id="currency-addon">@Currency</span>
+                                        </div>
+                                    </div>
+                                }
+                                <ValidationMessage For="@(() => SelectedItem.Price)" />
+                            </div>
+                            <div class="form-group d-flex align-items-center justify-content-between gap-2">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <label for="ImageUrl" class="form-label">Image Url</label>
+                                        @if (!string.IsNullOrEmpty(SelectedItem.ImageUrl))
+                                        {
+                                        <button type="button" class="btn btn-link p-0 text-danger" @onclick="UnsetImage">
+                                            <Icon Symbol="cross"/> Remove
+                                        </button>
+                                        }
+                                    </div>
+                                    <InputText @bind-Value="SelectedItem.ImageUrl" id="ImageUrl" class="form-control mb-2" type="url"/>
+                                    <ValidationMessage For="@(() => SelectedItem.ImageUrl)"/>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <InputFile OnChange="LoadImage" @key="@_inputFileId" id="Image" class="form-control"/>
+                                        <button class="btn btn-primary" type="button" @onclick="UploadImage" disabled="@(string.IsNullOrEmpty(SelectedItem.ImagePath))">Upload</button>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(SelectedItem.ImageUrl))
+                                {
+                                    <img src="@SelectedItem.ImageUrl" alt="@SelectedItem.Title" class="item-image"/>
+                                }
+                            </div>
+                            <div class="form-group">
+                                <label for="Description" class="form-label">Description</label>
+                                <InputTextArea @bind-Value="SelectedItem.Description" id="Description" class="form-control" rows="3" cols="40"/>
+                                <ValidationMessage For="@(() => SelectedItem.Description)" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="Inventory" class="form-label">Inventory</label>
+                                <InputNumber @bind-Value="SelectedItem.Inventory" id="Inventory" class="form-control" inputmode="numeric" min="0" step="1"/>
+                                <ValidationMessage For="@(() => SelectedItem.Inventory)" />
+                                <div class="form-text">Leave empty to not use this feature.</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="BuyButtonText" class="form-label">Buy Button Text</label>
+                                <InputText @bind-Value="SelectedItem.BuyButtonText" id="BuyButtonText" class="form-control"/>
+                                <ValidationMessage For="@(() => SelectedItem.BuyButtonText)" />
+                            </div>
+                            <div class="form-group d-flex align-items-center">
+                                <InputCheckbox @bind-Value="@SelectedItem.Enabled" id="Enable" class="btcpay-toggle me-3"/>
+                                <label for="Enable" class="form-check-label">Enable</label>
+                                <ValidationMessage For="@(() => SelectedItem.Enabled)"/>
+                            </div>
+                        </ValidationEditContext>
+                    }
+                    else
+                    {
+                        <div>Select an item to edit</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string AppId { get; set; } = null!;
+    [Parameter, EditorRequired]
+    public string Currency { get; set; } = null!;
+
+    [Parameter]
+    public IEnumerable<AppItem>? Items {
+        get => _items;
+        set {
+            _items = value?.ToList();
+            _ = SelectItem(null);
+        }
+    }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    private List<AppItem>? _items;
+    private Guid _inputFileId = Guid.NewGuid();
+    private ValidationEditContext? _validationEditContext;
+    private AppItemModel? SelectedItem { get; set; }
+    private string? _errorMessage;
+
+    private async Task SelectItem(AppItem? item)
+    {
+        _errorMessage = null;
+        SelectedItem = item != null ? new AppItemModel(item) : null;
+        await (SelectedItem != null ? ShowOffcanvas() : HideOffcanvas());
+    }
+
+    private async Task AddItem()
+    {
+        var item = new AppItem { PriceType = AppItemPriceType.Fixed, Price = 0 };
+        _items ??= [];
+        _items.Add(item);
+        await SelectItem(item);
+    }
+
+    private async Task RemoveItem(AppItem item)
+    {
+        _items!.Remove(item);
+        await SelectItem(null);
+    }
+
+    private async Task ShowOffcanvas()
+    {
+        await JS.InvokeVoidAsync("Interop.showOffcanvas", "#AppItemsEditorOffcanvas");
+    }
+
+    private async Task HideOffcanvas()
+    {
+        await JS.InvokeVoidAsync("Interop.hideOffcanvas", "#AppItemsEditorOffcanvas");
+    }
+
+    private void GenerateId()
+    {
+        if (string.IsNullOrEmpty(SelectedItem?.Id) && !string.IsNullOrEmpty(SelectedItem?.Title)) SelectedItem.Id = SelectedItem.Title;
+    }
+
+    private async Task LoadImage(InputFileChangeEventArgs e)
+    {
+        if (e.File.Size > 512000)
+        {
+            SelectedItem.ImagePath = null;
+            _errorMessage = "The image file size should not exceed 0.5 MB.";
+            _inputFileId = Guid.NewGuid();
+            return;
+        }
+        try
+        {
+            var appData = await DataDirectoryProvider.GetAppDataDirectory();
+            var fileName = e.File.Name;
+            var dirPath = Path.Combine(appData, "tmp");
+            var filePath = Path.Combine(dirPath, fileName);
+            Directory.CreateDirectory(dirPath);
+
+            await using FileStream fs = new(filePath, FileMode.Create);
+            await e.File.OpenReadStream().CopyToAsync(fs);
+            await fs.FlushAsync();
+            SelectedItem!.ImagePath = filePath;
+            _errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Image could not be applied: {ex.Message}";
+        }
+    }
+
+    private async Task UploadImage()
+    {
+        if (string.IsNullOrEmpty(SelectedItem!.ImagePath)) return;
+        try
+        {
+            var path = SelectedItem.ImagePath;
+            var mimeType = FileHelper.GetContentType(path);
+            var upload = await AccountManager.GetClient().UploadAppItemImage(AppId, path, mimeType);
+            SelectedItem.ImageUrl = upload.Url;
+            // cleanup
+            File.Delete(path);
+            SelectedItem.ImagePath = null;
+            _inputFileId = Guid.NewGuid();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Image could not be uploaded: {ex.Message}";
+        }
+    }
+
+    private Task UnsetImage()
+    {
+        SelectedItem!.ImageUrl = null;
+        SelectedItem.ImagePath = null;
+        _inputFileId = Guid.NewGuid();
+        return Task.CompletedTask;
+    }
+
+    private string CssClass => $"editor {(InputAttributes?.ContainsKey("class") is true ? InputAttributes["class"] : "")}".Trim();
+}

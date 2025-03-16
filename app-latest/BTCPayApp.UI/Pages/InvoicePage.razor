@@ -1,0 +1,351 @@
+﻿@attribute [Route(Routes.Invoice)]
+@using BTCPayApp.UI.Components.Layout
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.Core.Models
+@using BTCPayApp.UI.Features
+@using BTCPayApp.UI.Util
+@using BTCPayServer.Client
+@using BTCPayServer.Client.Models
+@using Newtonsoft.Json.Linq
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IAccountManager AccountManager
+@inject IDispatcher Dispatcher
+@inject IState<StoreState> StoreState
+@inject DisplayFormatter DisplayFormatter
+
+<PageTitle>@GetTitle()</PageTitle>
+
+<SectionContent SectionId="_Layout.Top">
+    <Titlebar Back>
+        <h1>Invoice</h1>
+    </Titlebar>
+</SectionContent>
+
+<section class="container">
+    @if (string.IsNullOrEmpty(StoreId))
+    {
+        <section class="container">
+            <Alert Type="info">Please configure a store first.</Alert>
+        </section>
+    }
+    else if (!string.IsNullOrEmpty(StoreInfo?.Id))
+    {
+        <AuthorizeView Policy="@Policies.CanViewInvoices" Resource="@StoreInfo.Id">
+            <Authorized>
+                @if (!string.IsNullOrEmpty(Error))
+                {
+                    <Alert Type="danger">@Error</Alert>
+                }
+                @if (Invoice is not null)
+                {
+                    <div class="invoice">
+                        <span>Invoice @Invoice.Id</span>
+                        <div class="h3">
+                            <span data-sensitive>@DisplayFormatter.Currency(Invoice.Amount, Invoice.Currency, DisplayFormatter.CurrencyFormat.Symbol)</span>
+                        </div>
+                        <div class="status d-flex flex-wrap align-items-center gap-2">
+                            <InvoiceStatusDisplay Invoice="@Invoice"/>
+                            @if (Invoice.Status == InvoiceStatus.New)
+                            {
+                                <a href="@Routes.CheckoutPath(Invoice.Id)">Checkout</a>
+                            }
+                        </div>
+
+                        <h4 class="mt-4">General Information</h4>
+                        <div class="box">
+                            <table class="table my-0">
+                                <tbody>
+                                @if (Invoice.Metadata.TryGetValue("orderId", out var orderId))
+                                {
+                                    <tr>
+                                        <th>Order Id</th>
+                                        <td>
+                                            @if (Invoice.Metadata.TryGetValue("orderUrl", out var orderUrl))
+                                            {
+                                                <a href="@orderUrl" rel="noreferrer noopener" target="_blank">@orderId</a>
+                                            }
+                                            else
+                                            {
+                                                <span>@orderId</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                                @if (Invoice.Metadata.TryGetValue("paymentRequestId", out var paymentRequestId))
+                                {
+                                    <tr>
+                                        <th>Payment Request Id</th>
+                                        <td>@paymentRequestId</td>
+                                    </tr>
+                                }
+                                <tr>
+                                    <th>Created</th>
+                                    <td>
+                                        <DateDisplay DateTimeOffset="@Invoice.CreatedTime"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Expired</th>
+                                    <td>
+                                        <DateDisplay DateTimeOffset="@Invoice.ExpirationTime"/>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @{
+                            // Product
+                            Invoice.Metadata.TryGetValue("itemCode", out var itemCode);
+                            Invoice.Metadata.TryGetValue("itemDesc", out var itemDesc);
+                            Invoice.Metadata.TryGetValue("taxIncluded", out var taxIncluded);
+                        }
+                        @if (!string.IsNullOrEmpty(itemCode?.ToString()) || !string.IsNullOrEmpty(itemDesc?.ToString()) || taxIncluded is not null)
+                        {
+                            <h4 class="mt-5">Product Information</h4>
+                            <div class="box">
+                                <table class="table my-0">
+                                    <tbody>
+                                    @if (!string.IsNullOrEmpty(itemCode?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Item code</th>
+                                            <td>@itemCode</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(itemDesc?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Item Description</th>
+                                            <td>@itemDesc</td>
+                                        </tr>
+                                    }
+                                    @if (taxIncluded is not null)
+                                    {
+                                        <tr>
+                                            <th>Tax Included</th>
+                                            <td>@taxIncluded</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        @{
+                            // Buyer
+                            Invoice.Metadata.TryGetValue("buyerName", out var buyerName);
+                            Invoice.Metadata.TryGetValue("buyerEmail", out var buyerEmail);
+                            Invoice.Metadata.TryGetValue("buyerPhone", out var buyerPhone);
+                            Invoice.Metadata.TryGetValue("buyerAddress1", out var buyerAddress1);
+                            Invoice.Metadata.TryGetValue("buyerAddress2", out var buyerAddress2);
+                            Invoice.Metadata.TryGetValue("buyerCity", out var buyerCity);
+                            Invoice.Metadata.TryGetValue("buyerState", out var buyerState);
+                            Invoice.Metadata.TryGetValue("buyerCountry", out var buyerCountry);
+                            Invoice.Metadata.TryGetValue("buyerZip", out var buyerZip);
+                        }
+                        @if (!string.IsNullOrEmpty(buyerName?.ToString()) || !string.IsNullOrEmpty(buyerEmail?.ToString()) ||
+                             !string.IsNullOrEmpty(buyerPhone?.ToString()) || !string.IsNullOrEmpty(buyerAddress1?.ToString()) ||
+                             !string.IsNullOrEmpty(buyerAddress2?.ToString()) || !string.IsNullOrEmpty(buyerCity?.ToString()) ||
+                             !string.IsNullOrEmpty(buyerState?.ToString()) || !string.IsNullOrEmpty(buyerCountry?.ToString()) ||
+                             !string.IsNullOrEmpty(buyerZip?.ToString()))
+                        {
+                            <h4 class="mt-5">Buyer Information</h4>
+                            <div class="box">
+                                <table class="table my-0">
+                                    <tbody>
+                                    @if (!string.IsNullOrEmpty(buyerName?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Name</th>
+                                            <td>@buyerName</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerEmail?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Email</th>
+                                            <td>
+                                                <a href="mailto:@buyerEmail">@buyerEmail</a>
+                                            </td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerPhone?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Phone</th>
+                                            <td>@buyerPhone</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerAddress1?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Address 1</th>
+                                            <td>@buyerAddress1</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerAddress2?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Address 2</th>
+                                            <td>@buyerAddress2</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerCity?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>City</th>
+                                            <td>@buyerCity</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerState?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>State</th>
+                                            <td>@buyerState</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerCountry?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Country</th>
+                                            <td>@buyerCountry</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(buyerZip?.ToString()))
+                                    {
+                                        <tr>
+                                            <th>Zip</th>
+                                            <td>@buyerZip</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        @if (Invoice.Metadata.TryGetValue("receiptData", out var receiptData))
+                        {
+                            Dictionary<string, object>? parsedReceiptData = null;
+                            try
+                            {
+                                parsedReceiptData = PosDataParser.ParsePosData(JObject.Parse(receiptData.ToString()));
+                            }
+                            catch (Exception)
+                            {
+                                // ignored
+                            }
+
+                            if (parsedReceiptData != null)
+                            {
+                                <header class="d-flex flex-wrap align-items-center justify-content-between mt-5 mb-2">
+                                    <h4 class="mb-0">Receipt Information</h4>
+                                    @if (!string.IsNullOrEmpty(ReceiptUrl))
+                                    {
+                                        <a href="@ReceiptUrl" rel="noreferrer noopener" target="_blank">Receipt</a>
+                                    }
+                                </header>
+                                <div class="box">
+                                    <DataDisplay Data="@parsedReceiptData"/>
+                                </div>
+                            }
+                        }
+
+                    </div>
+
+                    <h4 class="mt-5">Payment Information</h4>
+                    @if (!string.IsNullOrEmpty(PaymentMethodsError))
+                    {
+                        <Alert Type="danger">@PaymentMethodsError</Alert>
+                    }
+                    else if (Payments?.Any() is true)
+                    {
+                        <div class="payment-list">
+                            @foreach (var p in Payments)
+                            {
+                                <div class="box d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <span class="text-end">
+                                        @p.PaymentMethod.PaymentMethodId
+                                    </span>
+                                    <TruncateCenter Text="@p.Payment.Destination" Copy="true" class="truncate-center-id"/>
+                                    <span class="text-end text-muted" data-sensitive>
+                                        Rate: @DisplayFormatter.Currency(p.PaymentMethod.Rate, Invoice.Currency, DisplayFormatter.CurrencyFormat.Symbol)
+                                    </span>
+                                    <span class="text-end fw-semibold" data-sensitive>
+                                        @DisplayFormatter.Currency(p.Payment.Value, p.PaymentMethod.Currency, DisplayFormatter.CurrencyFormat.Symbol)
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="box">
+                            @if (PaymentMethodsLoading)
+                            {
+                                <div class="p-3 text-center">
+                                    <LoadingIndicator/>
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted my-2">There are no payments, yet.</p>
+                            }
+                        </div>
+                    }
+                }
+                else if (Loading)
+                {
+                    <div class="p-3 text-center">
+                        <LoadingIndicator/>
+                    </div>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <Alert Type="danger">Unauthorized.</Alert>
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+    else
+    {
+        <div class="p-3 text-center">
+            <LoadingIndicator/>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string? InvoiceId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (!string.IsNullOrEmpty(StoreId) && !string.IsNullOrEmpty(InvoiceId))
+        {
+            if (Invoice == null)
+                Dispatcher.Dispatch(new StoreState.FetchInvoice(StoreId, InvoiceId));
+            if (PaymentMethods == null)
+                Dispatcher.Dispatch(new StoreState.FetchInvoicePaymentMethods(StoreId, InvoiceId));
+        }
+    }
+
+    private string? StoreId => AccountManager.CurrentStore?.Id;
+    private AppUserStoreInfo? StoreInfo => StoreState.Value.StoreInfo;
+    private InvoiceData? Invoice => !string.IsNullOrEmpty(InvoiceId) ? StoreState.Value.GetInvoice(InvoiceId!)?.Data : null;
+    private bool Loading => !string.IsNullOrEmpty(InvoiceId) && StoreState.Value.GetInvoice(InvoiceId!)?.Loading is true;
+    private string? Error => !string.IsNullOrEmpty(InvoiceId) ? StoreState.Value.GetInvoice(InvoiceId!)?.Error : null;
+    private InvoicePaymentMethodDataModel[]? PaymentMethods => !string.IsNullOrEmpty(InvoiceId) ? StoreState.Value.GetInvoicePaymentMethods(InvoiceId!)?.Data : null;
+    private bool PaymentMethodsLoading => !string.IsNullOrEmpty(InvoiceId) && StoreState.Value.GetInvoicePaymentMethods(InvoiceId!)?.Loading is true;
+    private string? PaymentMethodsError => !string.IsNullOrEmpty(InvoiceId) ? StoreState.Value.GetInvoicePaymentMethods(InvoiceId!)?.Error : null;
+    private string? ReceiptUrl => Invoice is { Status: InvoiceStatus.Settled, Receipt.Enabled: true } ? $"{AccountManager.Account!.BaseUri}i/{InvoiceId}/receipt" : null;
+    private List<PaymentViewModel>? Payments => PaymentMethods?.SelectMany(pm => pm.Payments.Select(p => new PaymentViewModel { Payment = p, PaymentMethod = pm })).ToList();
+
+    private class PaymentViewModel
+    {
+        public InvoicePaymentMethodDataModel.Payment Payment { get; set; } = null!;
+        public InvoicePaymentMethodDataModel PaymentMethod { get; set; } = null!;
+    }
+
+    private string GetTitle() => $"Invoice {Invoice?.Id}".Trim();
+}

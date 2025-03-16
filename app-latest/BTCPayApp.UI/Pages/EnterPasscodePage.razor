@@ -1,0 +1,58 @@
+﻿@attribute [Route(Routes.EnterPasscode)]
+@layout BaseLayout
+@using BTCPayApp.UI.Components.Layout
+@using Plugin.Fingerprint.Abstractions
+@inject IFingerprint Fingerprint
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+
+<PageTitle>Enter Passcode</PageTitle>
+
+<SectionContent SectionId="_Layout.Top">
+    <Titlebar>
+        <h1>Enter Passcode</h1>
+    </Titlebar>
+</SectionContent>
+
+<section class="container">
+    <ValidationEditContext @ref="_validationEditContext" Model="Model" OnValidSubmit="HandleValidSubmit">
+        <Passcode OnPasscodeEntered="HandlePasscodeEntered" />
+    </ValidationEditContext>
+</section>
+
+@code {
+    private PasscodeModel Model { get; set; } = new();
+    private ValidationEditContext? _validationEditContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (await Fingerprint.IsAvailableAsync())
+        {
+            var request = new AuthenticationRequestConfiguration("Unlock BTCPay", "Alternatively you can provide your passcode.");
+            var result = await Fingerprint.AuthenticateAsync(request);
+            if (result.Authenticated)
+            {
+                // do secret stuff :)
+            }
+        }
+    }
+
+    public Task HandleValidSubmit()
+    {
+        return Task.CompletedTask;
+    }
+
+    public async Task HandlePasscodeEntered(Passcode.PasscodeEntered form)
+    {
+        Model.Passcode = form.Passcode;
+        await _validationEditContext!.Submit();
+    }
+
+    private class PasscodeModel
+    {
+        [Required]
+        [DataType(DataType.Password)]
+        public string Passcode { get; set; } = "";
+    }
+}

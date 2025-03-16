@@ -1,0 +1,7 @@
+﻿<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="DEV ANDROID" type="CompoundRunConfigurationType">
+    <toRun name="Server Regtest" type="LaunchSettings" />
+    <toRun name="Docker compose" type="docker-deploy" />
+    <method v="2" />
+  </configuration>
+</component>

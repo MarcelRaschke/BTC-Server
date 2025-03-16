@@ -1,0 +1,125 @@
+﻿@attribute [Route(Routes.NotificationSettings)]
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.UI.Components.Layout
+@using BTCPayApp.UI.Features
+@using BTCPayServer.Client.Models
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IState<NotificationState> NotificationState
+@inject IDispatcher Dispatcher
+@inject IActionSubscriber ActionSubscriber
+
+<PageTitle>Notifications</PageTitle>
+
+<SectionContent SectionId="_Layout.Top">
+    <Titlebar Back>
+        <h1>Notifications</h1>
+    </Titlebar>
+</SectionContent>
+
+<section class="container">
+    <AuthorizeView Policy="@AppPolicies.CanModifySettings">
+        <Authorized>
+            @if (Settings is null)
+            {
+                if (Loading)
+                {
+                    <div class="p-3 text-center">
+                        <LoadingIndicator/>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(Error))
+                {
+                    <Alert Type="danger">@Error</Alert>
+                }
+            }
+            else if (Model.Notifications is not null)
+            {
+                <ValidationEditContext @ref="_validationEditContext" Model="Model" OnValidSubmit="HandleValidSubmit" SuccessMessage="@_successMessage" ErrorMessage="@Error">
+                    <DataAnnotationsValidator/>
+                    @foreach (var item in Model.Notifications)
+                    {
+                        <div class="d-flex align-items-center my-3 gap-3">
+                            <InputCheckbox @bind-Value="@item.Enabled" id="@item.Identifier" class="btcpay-toggle"/>
+                            <label class="form-check-label cursor-pointer" for="@item.Identifier">
+                                @item.Name
+                            </label>
+                        </div>
+                    }
+                    <button type="submit" class="btn btn-primary w-100 mt-3" disabled="@(Settings == null || Sending)">
+                        @if (Sending)
+                        {
+                            <LoadingIndicator/>
+                        }
+                        else
+                        {
+                            <span>Update Settings</span>
+                        }
+                    </button>
+                </ValidationEditContext>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <Alert Type="danger">Unauthorized.</Alert>
+        </NotAuthorized>
+    </AuthorizeView>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string? AppId { get; set; }
+    private string? _successMessage;
+
+    private ValidationEditContext? _validationEditContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        ActionSubscriber.SubscribeToAction<NotificationState.UpdatedSettings>(this, action =>
+        {
+            if (action.Settings == null || action.Error != null) return;
+            _successMessage = "Settings successfully updated";
+            InvokeAsync(StateHasChanged);
+        });
+
+        Dispatcher.Dispatch(new NotificationState.FetchSettings());
+    }
+
+    protected override ValueTask DisposeAsyncCore(bool disposing)
+    {
+        base.DisposeAsyncCore(disposing);
+
+        ActionSubscriber.UnsubscribeFromAllActions(this);
+
+        return ValueTask.CompletedTask;
+    }
+
+    private void HandleValidSubmit()
+    {
+        _successMessage = null;
+        var disabled = Model.Notifications!
+            .Where(n => !n.Enabled)
+            .Select(n => n.Identifier)
+            .ToList();
+        if (disabled.Count == Model.Notifications!.Count) disabled = ["all"];
+        var request = new UpdateNotificationSettingsRequest
+        {
+            Disabled = disabled
+        };
+        Dispatcher.Dispatch(new NotificationState.UpdateSettings(request));
+    }
+
+    private class NotificationSettingsModel
+    {
+        public List<NotificationSettingsItemData>? Notifications { get; set; }
+    }
+
+    private NotificationSettingsData? Settings => NotificationState.Value.Settings?.Data;
+    private bool Loading => NotificationState.Value.Settings?.Loading is true;
+    private bool Sending => NotificationState.Value.Settings?.Sending is true;
+    private string? Error => NotificationState.Value.Settings?.Error;
+    private NotificationSettingsModel Model => new()
+    {
+        Notifications = Settings?.Notifications
+    };
+}

@@ -1,0 +1,145 @@
+﻿@attribute [Route(Routes.Login)]
+@inherits SignedOutBasePage
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.UI.Models
+@inject IAccountManager AccountManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>@GetTitle()</PageTitle>
+<AuthorizeView>
+    <NotAuthorized>
+        <SectionContent SectionId="_Layout.MainTop">
+            <InstanceLogo/>
+            <h1>@GetTitle()</h1>
+            @if (!string.IsNullOrEmpty(Error))
+            {
+                <Alert Type="danger">@Error</Alert>
+            }
+            else if (!string.IsNullOrEmpty(SuccessMessage))
+            {
+                <Alert Type="success">@SuccessMessage</Alert>
+            }
+        </SectionContent>
+        <ValidationEditContext @ref="ValidationEditContext" Model="Model" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <div class="form-group" hidden="@Model.RequireTwoFactor">
+                <div class="d-flex justify-content-between">
+                    <label for="Uri" class="form-label">Server URL</label>
+                    @if (InstanceLoading)
+                    {
+                        <LoadingIndicator />
+                    }
+                </div>
+                <InputText @bind-Value="Model.Uri" @bind-Value:after="() => ResolveInstanceInfo(Model.Uri)" id="Uri" class="form-control"/>
+                <ValidationMessage For="@(() => Model.Uri)" />
+            </div>
+            <div class="form-group" hidden="@Model.RequireTwoFactor">
+                <label for="Email" class="form-label">Email</label>
+                <InputText @bind-Value="Model.Email" type="email" id="Email" class="form-control"/>
+                <ValidationMessage For="@(() => Model.Email)" />
+            </div>
+            <div class="form-group" hidden="@Model.RequireTwoFactor">
+                <div class="d-flex justify-content-between">
+                    <label for="Password" class="form-label">Password</label>
+                    @if (InstanceInfo != null)
+                    {
+                        <NavLink href="@GetForgotPasswordUrl()">Forgot password?</NavLink>
+                    }
+                </div>
+                <InputText @bind-Value="Model.Password" type="password" id="Password" autocomplete="current-password" class="form-control"/>
+                <ValidationMessage For="@(() => Model.Password)"/>
+            </div>
+            @if (Model.RequireTwoFactor)
+            {
+                <div class="form-group">
+                    <label for="TwoFactorCode" class="form-label">Two Factor Code</label>
+                    <InputText @bind-Value="Model.TwoFactorCode" type="number" id="TwoFactorCode" autocomplete="one-time-code" class="form-control hide-number-spin"/>
+                    <ValidationMessage For="@(() => Model.TwoFactorCode)" />
+                </div>
+            }
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100" data-testid="LoginButton" disabled="@(InstanceInfo == null || Sending)">
+                    @if (Sending)
+                    {
+                        <LoadingIndicator />
+                    }
+                    else
+                    {
+                        <span>Sign in</span>
+                    }
+                </button>
+                @if (!Model.RequireTwoFactor)
+                {
+                    <button type="button" class="btn btn-secondary px-3" data-testid="ScanButton" data-bs-toggle="modal" data-bs-target="#ScanQrCodeModal">
+                        <Icon Symbol="scan-qr"/>
+                    </button>
+                }
+            </div>
+            @if (!Model.RequireTwoFactor && InstanceInfo is { RegistrationEnabled: true })
+            {
+                <p class="mt-4 text-center">
+                    <NavLink href="@GetRegisterUrl()">Create an account</NavLink>
+                </p>
+            }
+            else if (InstanceInfo is null)
+            {
+                <p class="mt-4 text-center">
+                    <NavLink href="@Routes.Connect">Connect to a BTCPay Server</NavLink>
+                </p>
+            }
+        </ValidationEditContext>
+        <QrScanModal OnScan="@OnQrCodeScan"/>
+    </NotAuthorized>
+    <Authorized>
+        <RedirectToIndex/>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private LoginModel Model { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        if (!string.IsNullOrEmpty(ServerUrl))
+        {
+            Model.Uri = Uri.UnescapeDataString(ServerUrl);
+        }
+
+        // See if we had a previous session/account
+        var account = AccountManager.Account;
+        if (string.IsNullOrEmpty(ServerUrl) || Model.Uri == account?.BaseUri)
+        {
+            Model.Uri = account?.BaseUri;
+            Model.Email = account?.Email;
+        }
+
+        ResolveInstanceInfo(Model.Uri);
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (await HandleInput(Model.Uri!) is true) return;
+
+        ErrorMessage = null;
+        Sending = true;
+
+        var url = GetBaseUri(Model.Uri);
+        var result = await AccountManager.Login(url, Model.Email!, Model.Password!, Model.TwoFactorCode);
+        Sending = false;
+        if (!result.Succeeded)
+        {
+            if (result.Messages?.Contains("RequiresTwoFactor") is true)
+                Model.RequireTwoFactor = true;
+            else
+                ErrorMessage = result.Messages?.Contains("Failed") is false
+                    ? string.Join(",", result.Messages)
+                    : "Invalid login attempt.";
+        }
+    }
+
+    private string GetTitle() => $"Login to {InstanceInfo?.ServerName ?? "a BTCPay Server"}";
+    private string GetRegisterUrl() => NavigationManager.GetUriWithQueryParameters(Routes.Register, new Dictionary<string, object?> { {"serverUrl", Model.Uri } } );
+    private string GetForgotPasswordUrl() => NavigationManager.GetUriWithQueryParameters(Routes.ForgotPassword, new Dictionary<string, object?> { {"serverUrl", Model.Uri } } );
+}

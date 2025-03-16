@@ -1,0 +1,49 @@
+@using BTCPayServer.Client.Models
+<a href="@Notification.Link" class="border-bottom border-light @(Notification.Seen ? null : "bg-light")" @onclick="HandleClick" @onclick:preventDefault>
+    <div class="container d-flex align-items-center gap-3 py-3">
+        <div>
+            <Icon Symbol="@NotificationIcon(Notification.Identifier)"/>
+        </div>
+        <div class="content">
+            <div class="fw-semibold text-wrap">
+                @Notification.Body
+            </div>
+            <small class="text-muted">
+                <DateDisplay DateTimeOffset="Notification.CreatedTime"/>
+            </small>
+        </div>
+    </div>
+</a>
+
+@code {
+    [Parameter, EditorRequired]
+    public NotificationData Notification { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<NotificationData> OnClick { get; set; }
+
+    private static string NotificationIcon(string? type)
+    {
+        return type switch
+        {
+            "invoice_expired" => "notifications-invoice-failure",
+            "invoice_expiredpaidpartial" => "notifications-invoice-failure",
+            "invoice_failedtoconfirm" => "notifications-invoice-failure",
+            "invoice_confirmed" => "notifications-invoice-settled",
+            "invoice_paidafterexpiration" => "notifications-invoice-settled",
+            "external-payout-transaction" => "notifications-payout",
+            "payout_awaitingapproval" => "notifications-payout",
+            "payout_awaitingpayment" => "notifications-payout-approved",
+            "inviteaccepted" => "notifications-account",
+            "newuserrequiresapproval" => "notifications-account",
+            "newversion" => "notifications-new-version",
+            _ => "note"
+        };
+    }
+
+    private async Task HandleClick(MouseEventArgs e)
+    {
+        if (OnClick.HasDelegate)
+            await OnClick.InvokeAsync(Notification);
+    }
+}

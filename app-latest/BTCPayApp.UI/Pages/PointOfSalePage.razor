@@ -1,0 +1,134 @@
+@attribute [Route(Routes.PointOfSale)]
+@using System.Globalization
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.Core.Models
+@using BTCPayApp.UI.Features
+@using BTCPayApp.UI.Util
+@using BTCPayServer.Client.Models
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject NavigationManager NavigationManager
+@inject DisplayFormatter DisplayFormatter
+@inject IAccountManager AccountManager
+@inject IState<StoreState> StoreState
+@inject IDispatcher Dispatcher
+@inject IActionSubscriber ActionSubscriber
+
+<PageTitle>Point Of Sale</PageTitle>
+
+@if (Loading || string.IsNullOrEmpty(AppId))
+{
+    <section class="loading-container">
+        <LoadingIndicator Size="lg"/>
+        <div class="fs-4">Loading</div>
+    </section>
+}
+else
+{
+    <section class="container px-0">
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <Alert Type="danger" class="mx-3">@Error</Alert>
+        }
+        @if (!string.IsNullOrEmpty(StoreId) && !string.IsNullOrEmpty(AppId) && AppData != null)
+        {
+            <div class="keypad-wrap">
+                <Keypad
+                    StoreId="@StoreId"
+                    AppId="@AppId"
+                    CurrencyCode="@AppData.Currency"
+                    CurrencyInfo="@CurrencyInfo"
+                    IsItemlistEnabled="@(AppData.ShowItems is true)"
+                    IsDiscountEnabled="@(AppData.ShowDiscount is true)"
+                    IsTipEnabled="@(AppData.EnableTips is true)"
+                    IsSearchEnabled="@(AppData.ShowSearch is true)"
+                    IsCategoriesEnabled="@(AppData.ShowCategories is true)"
+                    Items="@Items"
+                    Categories="@Categories"
+                    CustomTipPercentages="@AppData.CustomTipPercentages"
+                    RecentTransactions="@RecentTransactions"
+                    LoadRecentTransactions="@LoadRecentTransactions"
+                    CreateInvoice="@CreateInvoice" />
+            </div>
+        }
+    </section>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        ActionSubscriber.SubscribeToAction<StoreState.SetPointOfSale>(this, action =>
+        {
+            if (Store != null && action.AppData == null)
+            {
+                AccountManager.EnsureStorePos(Store, true);
+                return;
+            }
+            InvokeAsync(StateHasChanged);
+        });
+
+        var appId = Store == null ? null : (await AccountManager.EnsureStorePos(Store)).PosAppId;
+        if (!Loading && AppData == null && !string.IsNullOrEmpty(appId))
+            Dispatcher.Dispatch(new StoreState.FetchPointOfSale(appId));
+    }
+
+    protected override ValueTask DisposeAsyncCore(bool disposing)
+    {
+        base.DisposeAsyncCore(disposing);
+
+        ActionSubscriber.UnsubscribeFromAllActions(this);
+
+        return ValueTask.CompletedTask;
+    }
+
+    private async Task CreateInvoice(CreatePosInvoiceRequest req)
+    {
+        _errorMessage = null;
+        req.AppId = AppId;
+        try
+        {
+            var res = await AccountManager.GetClient().CreatePosInvoice(req);
+            if (res?.TryGetValue("invoiceId", out var invoiceId) is true)
+                NavigationManager.NavigateTo(Routes.CheckoutPath(invoiceId.ToString()));
+            else if (res?.TryGetValue("error", out var error) is true)
+                _errorMessage = error.ToString();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task LoadRecentTransactions()
+    {
+        var from = DateTimeOffset.UtcNow - TimeSpan.FromDays(3);
+        var search = $"pos-app_{AppId}";
+        var invoices = await AccountManager.GetClient().GetInvoices(StoreId, startDate: from, textSearch: search);
+        RecentTransactions = invoices
+            .Take(10)
+            .Select(i => new Keypad.RecentTransaction
+            {
+                Id = i.Id,
+                Date = i.CreatedTime,
+                Price = i.Amount,
+                Status = i.Status.ToString(),
+                Url = Routes.InvoicePath(i.Id)
+            });
+    }
+
+    private string? _errorMessage;
+    private AppUserStoreInfo? Store => AccountManager.CurrentStore;
+    private string? StoreId => Store?.Id;
+    private string? AppId => Store?.PosAppId ?? AppData?.Id;
+    private PointOfSaleAppData? AppData => StoreState.Value.PointOfSale?.Data;
+    private bool Loading => StoreState.Value.PointOfSale?.Loading is true;
+    private string? Error => StoreState.Value.PointOfSale?.Error ?? _errorMessage;
+    private IEnumerable<Keypad.RecentTransaction>? RecentTransactions { get; set; }
+    private IEnumerable<AppItem>? Items => AppData?.Items;
+    private IEnumerable<string>? Categories => Items?.SelectMany(g => g.Categories ?? []).ToHashSet().ToList();
+    private NumberFormatInfo DefaultCurrencyInfo => DisplayFormatter.GetNumberFormatInfo("USD")!;
+    private NumberFormatInfo CurrencyInfo => !string.IsNullOrEmpty(AppData?.Currency)
+        ? DisplayFormatter.GetNumberFormatInfo(AppData.Currency) ?? DefaultCurrencyInfo
+        : DefaultCurrencyInfo;
+}

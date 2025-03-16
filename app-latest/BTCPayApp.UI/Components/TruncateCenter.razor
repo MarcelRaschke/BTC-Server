@@ -1,0 +1,46 @@
+<span @attributes="InputAttributes" class="@CssClass">
+    <span class="truncate-center-truncated" data-bs-toggle="@(IsTruncated ? "tooltip" : null)" title="@(IsTruncated ? Text : null)">
+        <span class="truncate-center-start">@(IsTruncated && !Elastic ? $"{Start}…" : Text)</span>
+        <span class="truncate-center-end">@End</span>
+    </span>
+    <span class="truncate-center-text">@Text</span>
+    @if (Copy)
+    {
+        <button type="button" class="btn btn-link p-0" data-clipboard="@Text" @onclick:stopPropagation>
+            <Icon Symbol="actions-copy" />
+        </button>
+    }
+    @if (!string.IsNullOrEmpty(Link))
+    {
+        <a href="@Link" rel="noreferrer noopener" target="@(Link.StartsWith("http") ? "_blank" : null)" @onclick:stopPropagation>
+            <Icon Symbol="info" />
+        </a>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public string? Link { get; set; }
+
+    [Parameter]
+    public int Padding { get; set; } = 7;
+
+    [Parameter]
+    public bool Copy { get; set; }
+
+    [Parameter]
+    public bool Elastic { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    private bool IsTruncated => !string.IsNullOrEmpty(Start) && !string.IsNullOrEmpty(End);
+
+    private string? Start => Text?.Length > 2 * Padding ? Text[..Padding] : null;
+    private string? End => Text?.Length > 2 * Padding ? Text[^Padding..] : null;
+
+    private string CssClass => $"truncate-center {(Copy ? "truncate-center--copy" : "")} {(Elastic ? "truncate-center--elastic" : "")} {(InputAttributes?.ContainsKey("class") is true ? InputAttributes["class"] : "")}".Trim();
+}

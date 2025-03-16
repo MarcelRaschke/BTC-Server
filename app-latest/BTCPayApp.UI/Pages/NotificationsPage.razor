@@ -1,0 +1,90 @@
+﻿@attribute [Route(Routes.Notifications)]
+@using BTCPayApp.UI.Components.Layout
+@using BTCPayApp.UI.Features
+@using BTCPayServer.Client.Models
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject NavigationManager NavigationManager
+@inject IState<StoreState> StoreState
+@inject IDispatcher Dispatcher
+
+<PageTitle>Notifications</PageTitle>
+
+<SectionContent SectionId="_Layout.Top">
+    <Titlebar Back>
+        <SectionContent SectionId="Titlebar.End">
+            @if (Loading)
+            {
+                <LoadingIndicator/>
+            }
+            else if (Notifications?.Any(n => n.Seen == false) is true)
+            {
+                <button type="button" class="btn btn-sm btn-secondary text-nowrap p-2" @onclick="MarkAllRead">Mark all as read</button>
+            }
+        </SectionContent>
+        <h1>Notifications</h1>
+    </Titlebar>
+</SectionContent>
+
+@if (!string.IsNullOrEmpty(Error))
+{
+    <section class="container">
+        <Alert Type="danger">@Error</Alert>
+    </section>
+}
+@if (Notifications is not null)
+{
+    @if (Notifications.Any())
+    {
+        <div class="notifications">
+            @foreach (var n in Notifications)
+            {
+                <NotificationItem Notification="@n" OnClick="OnClick"/>
+            }
+        </div>
+    }
+    else
+    {
+        <section class="container">
+            <div class="box">
+                <p class="text-muted text-center py-4">There are no notifications, yet.</p>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private IEnumerable<NotificationData>? Notifications => StoreState.Value.Notifications?.Data;
+    private bool Loading => StoreState.Value.Notifications?.Loading is true;
+    private string? Error => StoreState.Value.Notifications?.Error;
+
+    private void OnClick(NotificationData notification)
+    {
+        if (notification.Seen is false)
+            Dispatcher.Dispatch(new StoreState.UpdateNotification(notification.Id, true));
+        var link = GetLink(notification);
+        if (!string.IsNullOrEmpty(link))
+            NavigationManager.NavigateTo(link);
+    }
+
+    private Task MarkAllRead()
+    {
+        if (Notifications == null) return Task.CompletedTask;
+        foreach (var notification in Notifications)
+            Dispatcher.Dispatch(new StoreState.UpdateNotification(notification.Id, true));
+        return Task.CompletedTask;
+    }
+
+    private string? GetLink(NotificationData notification)
+    {
+        var link = notification.Link.ToString();
+        return notification.Identifier switch
+        {
+            "invoice_expired" => link,
+            "invoice_expiredpaidpartial" => link,
+            "invoice_failedtoconfirm" => link,
+            "invoice_confirmed" => link,
+            "invoice_paidafterexpiration" => link,
+            _ => null
+        };
+    }
+}

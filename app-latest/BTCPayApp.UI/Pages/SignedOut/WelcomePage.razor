@@ -1,0 +1,25 @@
+﻿@attribute [Route(Routes.Welcome)]
+@attribute [AllowAnonymous]
+@inherits SignedOutBasePage
+
+<PageTitle>@GetTitle()</PageTitle>
+<AuthorizeView>
+    <NotAuthorized>
+        <div class="text-center">
+            <InstanceLogo/>
+            <h1>@GetTitle()</h1>
+            <p class="text-secondary lead mb-5">
+                BTCPay Server is a self-hosted, open-source Bitcoin payment processor.
+                It's secure, private, censorship-resistant and free.
+            </p>
+            <NavLink class="btn btn-primary w-100" href="@Routes.Connect" data-testid="GetStartedButton">Get Started</NavLink>
+        </div>
+    </NotAuthorized>
+    <Authorized>
+        <RedirectToIndex/>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private string GetTitle() => "Welcome to BTCPay";
+}

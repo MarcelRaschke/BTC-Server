@@ -1,0 +1,80 @@
+﻿@using BTCPayApp.Core.Auth
+@using BTCPayApp.UI.Features
+@using BTCPayApp.UI.Pages
+@using BTCPayApp.Core.Contracts
+@using BTCPayApp.UI.Pages.SignedOut
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IAccountManager AccountManager
+@inject ConfigProvider ConfigProvider
+
+<PageTitle>BTCPay Server</PageTitle>
+<Fluxor.Blazor.Web.StoreInitializer  />
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            @RouterWithLayout(typeof(MainLayout))
+        </Authorized>
+        <Authorizing>
+            @RouterWithLayout(typeof(BaseLayout))
+        </Authorizing>
+        <NotAuthorized>
+            @RouterWithLayout(typeof(SimpleLayout))
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var state = await ConfigProvider.Get<UIState>(StateMiddleware.UiStateConfigKey);
+        if (!string.IsNullOrEmpty(state?.SelectedTheme))
+        {
+            Dispatcher.Dispatch(new UIState.ApplyUserTheme(state.SelectedTheme));
+        }
+
+        // signed in
+        if (AuthState == null) return;
+        var authState = await AuthState;
+        var account = AccountManager.Account;
+        if (authState.User.Identity?.IsAuthenticated is true && !string.IsNullOrEmpty(account?.BaseUri))
+        {
+            Dispatcher.Dispatch(new UIState.FetchInstanceInfo(account.BaseUri));
+        }
+
+        // store
+        var store = AccountManager.CurrentStore;
+        if (store != null)
+        {
+            Dispatcher.Dispatch(new StoreState.SetStoreInfo(store));
+        }
+    }
+
+    RenderFragment RouterWithLayout(Type layoutType) => __builder =>
+    {
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@layoutType">
+                    <NotAuthorized>
+                        <RedirectToIndex/>
+                    </NotAuthorized>
+                    <Authorizing>
+                        <IndexPage />
+                    </Authorizing>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1"/>
+            </Found>
+            <NotFound>
+                <PageTitle>Not found</PageTitle>
+                <LayoutView Layout="@typeof(SimpleLayout)">
+                    <ErrorPage Title="Not found" Message="This page does not exist."/>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    };
+}

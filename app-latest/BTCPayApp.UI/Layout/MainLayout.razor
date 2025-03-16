@@ -1,0 +1,13 @@
+﻿@using BTCPayApp.UI.Components.Layout
+@inherits _Layout
+
+<div id="MainLayout" class="layout">
+    <SectionOutlet SectionId="Top" />
+    <NavbarBottom />
+    <main id="MainContent">
+        <SectionOutlet SectionId="MainTop" />
+        @Body
+        <SectionOutlet SectionId="MainBottom" />
+    </main>
+    <SectionOutlet SectionId="Bottom" />
+</div>

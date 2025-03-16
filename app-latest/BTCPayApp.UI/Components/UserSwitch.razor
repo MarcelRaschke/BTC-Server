@@ -1,0 +1,50 @@
+@using BTCPayApp.Core.Auth
+@using BTCPayApp.Core.Models
+@using BTCPayApp.UI.Models
+@using BTCPayServer.Client.Models
+@inject IJSRuntime JS
+@inject IAccountManager AccountManager
+@inject NavigationManager NavigationManager
+
+<div @attributes="InputAttributes" class="@CssClass">
+    <button class="d-inline-flex align-items-center btn btn-link text-body dropdown-toggle dropdown-toggle-no-caret p-0 gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <UserInfo Email="@CurrentUser.Email" Name="@CurrentUser.Name" ImageUrl="@CurrentUser.ImageUrl" />
+        <Icon Symbol="caret-down" class="text-muted"/>
+    </button>
+    <ul class="dropdown-menu">
+        <li><h6 class="dropdown-header">Switch to user</h6></li>
+        @foreach (var user in Users)
+        {
+            if (user.Email == CurrentUser.Email) continue;
+            <li>
+                <button class="d-inline-flex align-items-center dropdown-item gap-2" type="button" @onclick="() => HandleSwitchToUser(user)">
+                    <UserInfo Email="@user.Email" Name="@user.Name" ImageUrl="@user.ImageUrl" />
+                </button>
+            </li>
+        }
+    </ul>
+</div>
+
+@code {
+    private LoginModel? Model { get; set; }
+
+    [Parameter, EditorRequired]
+    public required AppUserInfo CurrentUser { get; set; }
+
+    [Parameter, EditorRequired]
+    public required IEnumerable<StoreUserData> Users { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? InputAttributes { get; set; }
+
+    [Parameter]
+    public EventCallback<StoreUserData> SwitchToUser { get; set; }
+
+    private async Task HandleSwitchToUser(StoreUserData user)
+    {
+        if (SwitchToUser.HasDelegate)
+            await SwitchToUser.InvokeAsync(user);
+    }
+
+    private string CssClass => $"d-inline-flex align-items-center p-0 gap-3 {(InputAttributes?.ContainsKey("class") is true ? InputAttributes["class"] : "")}".Trim();
+}
